@@ -1,56 +1,10 @@
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMWNXK0OOkkkOO0KXNMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMWKko:,.......'''''''......',cdkXMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMXkl,...',:clllllllllllllllllllllc:,'..':d0WMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMXd;...,:lllllllllllllllllllllllllllllllllll:,..'lOWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMWOc..';llllllllllllllllllllllllllllllllllllllllllllc;..,dXMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMWO:..,clllllllllllllllllllllllllllllllllllllllllllllllllll:'.'dNMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMNl..,clllllllllllllllllllllllllllllllllllllllllllllllllllllllll:..:0MMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMK: .:lllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll,.'kWMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMM0, 'clllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll;..kMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMX; 'llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll:..0MMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMWl .clllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll, :NMMMMMMMMMMMMMM
-MMMMMMMMMMMMMK. :llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc..OMMMMMMMMMMMMM
-MMMMMMMMMMMMd 'llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll; lWMMMMMMMMMMM
-MMMMMMMMMMW; ;llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll: ,NMMMMMMMMMM
-MMMMMMMMMN. :llllllllllllllllllllllllllllllll::;;::;:::clllllllllllllllllllllllllllllllllllllllllllc..XMMMMMMMMM
-MMMMMMMMN..clllllllllllllllllllllllllllllll,:cll:,,,;,,;;:::llllllllllcccllllllllllllllllllllllllllll..NMMMMMMMM
-MMMMMMMN. cllllllllllllllllllllllllllllllll,,,::clll,ccclll:'lllllllc:;';lllllllllllllllllllllllllllll.'WMMMMMMM
-MMMMMMM; clllllllllllllllllllllllllllllllllllc;,,'':c:c,,,,,clllll:,;cl:llllllllllllllllllllllllllllllc cMMMMMMM
-MMMMMMd :llllllllllllllllllllllllllllllllllllc::,;,,:::;,;:::clll',ccc::cllllllllllllllllllllllllllllll; kMMMMMM
-MMMMMX .llllllllllllllllllllllllllllllllc:;::::ccccc::cc;ccc::;;;:. ..',;:llllllllllllllllllllllllllllll..NMMMMM
-MMMMM; cllllllllllllllllllllllllllllllc':lllllllllll'cllllllllc;;:c:;;::c:,;;lllllllllllllllllllllllllllc lMMMMM
-MMMMK 'lllllllllllllllllllllllllllllll',lllllllllcc:::;;;;;;,;:::ccclllc:::llllllllllllllllllllllllllllll' NMMMM
-MMMMl cllllllllllllllllllllllllllllllc'.;;;;::;::llllc:lllll,,llllllccccll:'cllllllllllllllllllllllllllllc dMMMM
-MMMM..llllllllllllllccccclllllc:;:;;;:ccclllll,lllll,:lllllll;,lllllllll;c:;',:lllllllllllllllllllllllllll.,MMMM
-MMMX 'lllllll:;;,,;;;';;:;;,,,;cc:c:;;;,,''...'cclc.;lllllllll';llllllll:,:ccc;;;;:lllllllllllllllllllllll..WMMM
-MMMO ,llllc;;:clll,:llllc.,:c::,.    ..,;cc:;;,..'',ccccccccccc.:ccc:;,......',;cc;,;,;::::::lllllllllllll, XMMM
-MMMk ;lll:'lllc::::::::,::c::::c.;clllllllllll; .   :'........';'. .,,;clllc;'.  .;:lc::ccc:';::::llllllll; KMMM
-MMMk ;lll;'c;:cllllllllc;lllllc',lllllllllllll; :  .l' .   ,. 'c   :llllllllllllc,.;lll:::,:lc:;;;,;:lllll, KMMM
-MMM0 ,llll:',::lllllllllc;c:;,,clllllllllllllll;l  'l. ;' .l  :'  'lllllllllllllll:.;::lllll::,:;::lc;:lll, NMMM
-MMMN .lllllll:;,,,,,,,,,,;;:cllllllllllllllllll:l  ;c  c. :;  :. .lllllllllllllllllc'':lllllll:;lll::c,:ll..MMMM
-MMMM..lllllllllllllllllllllllllllllllllllllllll;l  ;;  : .l  .;  clllllllllllllllllllc;,,;:llll'lllllc.;ll ;MMMM
-MMMMo :llllllllllllllllllllllllllllllllllllllll;c. ,; .. ;c  .  ,llllllllllllllllllllllll:;,,,,';;;,,,;ll: xMMMM
-MMMMN .llllllllllllllllllllllllllllllllllllllll,,  ';    l' .' .lllllllllllllllllllllllllllllllccccllllll..WMMMM
-MMMMMl clllllllllllllllllllllllllllllllllllllll:   '.   'c  : .cllllllllllllllllllllllllllllllllllllllll: dMMMMM
-MMMMMN..llllllllllllllllllllllllllllllllllllllll.,...   ;, 'lcllllllllllllllllllllllllllllllllllllllllll..WMMMMM
-MMMMMM0 ,lllllllllllllllllllllllllllllllllllllll',;'....c ,llllllllllllllllllllllllllllllllllllllllllll, KMMMMMM
-MMMMMMMo ;lllllllllllllllllllllllllllllllllllllllll.;lll'.llllllllllllllllllllllllllllllllllllllllllll: xMMMMMMM
-MMMMMMMM: :llllllllllllllllllllllllllllllllllllllll,lllllllllllllllllllllllllllllllllllllllllllllllll: lMMMMMMMM
-MMMMMMMMW: :llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll: :MMMMMMMMM
-MMMMMMMMMMl ,llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll; lMMMMMMMMMM
-MMMMMMMMMMMk .llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll' xMMMMMMMMMMM
-MMMMMMMMMMMMX..:llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc..KMMMMMMMMMMMM
-MMMMMMMMMMMMMWo 'llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll, lWMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMX, ,llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll; ,KMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMM0'.;llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll:..OMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMO' ,clllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll;.'kMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMKc..:llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc'.:0MMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMWd'.'cllllllllllllllllllllllllllllllllllllllllllllllllllllllc,..dNMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMXo'.':llllllllllllllllllllllllllllllllllllllllllllllll:'.'oKMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMNx:..';llllllllllllllllllllllllllllllllllllllll:,..;xXMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMXxc'..';:llllllllllllllllllllllllllllc;,..':xXMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMWXko:'....',;:::ccccccc::;;,'...';lkKWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMWX0kdolc:;;,,;;::codkOXWMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
-MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+
+   ██████╗██╗████████╗ █████╗ ██████╗ ███████╗██╗
+  ██╔════╝██║╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██║
+  ██║     ██║   ██║   ███████║██║  ██║█████╗  ██║
+  ██║     ██║   ██║   ██╔══██║██║  ██║██╔══╝  ██║
+  ╚██████╗██║   ██║   ██║  ██║██████╔╝███████╗███████╗
+   ╚═════╝╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝
+          ┌─────────────────────────────────────┐
+          │  CITADEL OS  ·  Modular Core v3.0  │
+          └─────────────────────────────────────┘

@@ -4,6 +4,9 @@ VERSION = "3.0 (Modular System)"
 USER_NAME = "User"
 SHELL_PROMPT = "CitadelOS @ User $> "
 
+# Пароль для входа (по умолчанию: admin)
+PASSWORD_HASH = "21232f297a57a5a743894a0e4a801fc3"  # MD5 от "admin"
+
 COLORS = {
     "PURPLE": "\033[95m",
     "CYAN": "\033[96m",
@@ -16,4 +19,8 @@ COLORS = {
     "RESET": "\033[0m"
 }
 
+# Текущая тема оформления (по умолчанию PURPLE)
+THEME_COLOR = "PURPLE"
+
 TEXT_DELAY = 0.002
+DEBUG_MODE = False

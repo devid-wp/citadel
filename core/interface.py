@@ -1,63 +1,176 @@
 import sys
 import time
 import os
-from config import COLORS, TEXT_DELAY, VERSION, USER_NAME
+import config
+
+# Форсируем UTF-8 вывод, чтобы Unicode-рамки корректно рендерились в Windows Terminal
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
+def _safe_write(text):
+    """Печатает строку, заменяя нераспознанные символы на '?' вместо краша"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        # Fallback: убираем непечатаемые для данного терминала символы
+        print(text.encode('ascii', errors='replace').decode('ascii'))
 
 def clear_screen():
-    import os
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def terminal_print(text, delay=TEXT_DELAY, color_code=COLORS["GREEN"]):
+def get_theme_color():
+    theme = getattr(config, 'THEME_COLOR', 'PURPLE')
+    return config.COLORS.get(theme, config.COLORS["PURPLE"])
+
+def terminal_print(text, delay=None, color_code=None):
+    if delay is None:
+        delay = getattr(config, 'TEXT_DELAY', 0.002)
+    if color_code is None:
+        color_code = get_theme_color()
+        
     sys.stdout.write(color_code)
     for char in text:
         sys.stdout.write(char)
         sys.stdout.flush()
         time.sleep(delay)
-    sys.stdout.write(COLORS["RESET"] + "\n")
+    sys.stdout.write(config.COLORS["RESET"] + "\n")
+
+def display_progress_bar(duration, task_name="Загрузка"):
+    """Красивый анимированный индикатор загрузки (Progress Bar)"""
+    steps = 30
+    sleep_time = duration / steps
+    theme_color = get_theme_color()
+    
+    sys.stdout.write(f"{config.COLORS['GRAY']}[ INFO ]: {task_name}... {config.COLORS['RESET']}\n")
+    for i in range(steps + 1):
+        percent = int((i / steps) * 100)
+        filled = i
+        empty = steps - i
+        bar = f"{theme_color}█" * filled + f"{config.COLORS['GRAY']}░" * empty
+        sys.stdout.write(f"\r  {config.COLORS['CYAN']}[{bar}{config.COLORS['CYAN']}] {percent}%")
+        sys.stdout.flush()
+        time.sleep(sleep_time)
+    sys.stdout.write(f"\n{config.COLORS['GREEN']}[ SUCCESS ]: {task_name} завершено успешно!{config.COLORS['RESET']}\n\n")
+
+def _supports_unicode():
+    """Проверяет, поддерживает ли текущий терминал Unicode"""
+    try:
+        '┌'.encode(sys.stdout.encoding or 'ascii')
+        return True
+    except (UnicodeEncodeError, LookupError):
+        return False
+
+def display_table(headers, rows):
+    """Отрисовка таблицы в консоли (Unicode-рамки или ASCII fallback)"""
+    # Вычисляем максимальную ширину колонок
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for idx, val in enumerate(row):
+            col_widths[idx] = max(col_widths[idx], len(str(val)))
+            
+    theme_color = get_theme_color()
+    reset = config.COLORS["RESET"]
+    
+    use_unicode = _supports_unicode()
+    
+    if use_unicode:
+        top    = theme_color + "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐" + reset
+        middle = theme_color + "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤" + reset
+        bottom = theme_color + "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘" + reset
+        sep = "│"
+    else:
+        # ASCII fallback для старых консолей (cp1251, cp866)
+        top    = theme_color + "+" + "+".join("-" * (w + 2) for w in col_widths) + "+" + reset
+        middle = theme_color + "+" + "+".join("-" * (w + 2) for w in col_widths) + "+" + reset
+        bottom = theme_color + "+" + "+".join("-" * (w + 2) for w in col_widths) + "+" + reset
+        sep = "|"
+    
+    _safe_write(top)
+    # Заголовок
+    header_str = theme_color + sep + reset + (theme_color + f" {sep} ").join(f" {h:<{col_widths[idx]}} " for idx, h in enumerate(headers)) + theme_color + f" {sep}" + reset
+    _safe_write(header_str)
+    _safe_write(middle)
+    
+    # Строки данных
+    for row in rows:
+        row_str = theme_color + sep + reset + f" {sep} ".join(f" {str(val):<{col_widths[idx]}} " for idx, val in enumerate(row)) + theme_color + f" {sep}" + reset
+        _safe_write(row_str)
+    _safe_write(bottom)
 
 def display_fastfetch(sys_info):
-    """Вывод оригинального огромного ASCII-логотипа и характеристик системы под ним"""
+    """Вывод ASCII-логотипа и характеристик системы"""
     logo_path = "logo.txt"
+    theme_color = get_theme_color()
+    reset = config.COLORS["RESET"]
+    green = config.COLORS["GREEN"]
+    purple = config.COLORS["PURPLE"]
     
-    # 1. Пытаемся прочитать твой оригинальный файл logo.txt
     if os.path.exists(logo_path):
         try:
             with open(logo_path, "r", encoding="utf-8") as f:
                 logo_lines = f.readlines()
             
-            # Выводим логотип красивым неоновым цветом (например, CYAN или PURPLE)
-            print(COLORS["CYAN"])
+            print(theme_color)
             for line in logo_lines:
-                # Ограничиваем анимацию для огромного текста, чтобы не ждать полчаса
                 sys.stdout.write(line)
-            print(COLORS["RESET"])
+            print(reset)
         except Exception:
-            print(f"{COLORS['RED']}[ Ошибка загрузки logo.txt ]{COLORS['RESET']}\n")
+            print(f"{config.COLORS['RED']}[ Ошибка загрузки logo.txt ]{reset}\n")
     else:
-        print(f"{COLORS['YELLOW']}[ Предупреждение: Файл logo.txt не найден в папке проекта ]{COLORS['RESET']}\n")
+        # Резервный логотип, если logo.txt отсутствует
+        print(f"{theme_color}")
+        print("  ____ _ _   _   _ ____  _____ _     ")
+        print(" / ___(_) |_/ |_| |  _ \\| ____| |    ")
+        print("| |   | | __| __| | | | |  _| | |    ")
+        print("| |___| | |_| |_| | |_| | |___| |___ ")
+        print(" \\____|_|\\__|\\__|_|____/|_____|_____|")
+        print(f"        CITADEL SYSTEM CORE v{config.VERSION}{reset}\n")
 
-    # 2. Аккуратная неоновая плашка с РЕАЛЬНЫМИ характеристиками ПК под логотипом
-    print(f" {COLORS['PURPLE']}╔═════════════════════ СИСТЕМНАЯ СВОДКА CITADEL OS ═════════════════════╗{COLORS['RESET']}")
-    print(f"  {COLORS['GREEN']} USER:{COLORS['RESET']} {USER_NAME}@citadel-core  |  {COLORS['GREEN']}OS:{COLORS['RESET']} Citadel OS v{VERSION}")
-    print(f"  {COLORS['GREEN']} CPU:{COLORS['RESET']} {sys_info.get('cpu_model', 'N/A')} ")
-    print(f"  {COLORS['GREEN']} RAM:{COLORS['RESET']} {sys_info.get('memory', 'N/A')}        |  {COLORS['GREEN']}UPTIME:{COLORS['RESET']} {sys_info.get('uptime', 'N/A')}")
-    print(f"  {COLORS['GREEN']} HOST:{COLORS['RESET']} Win11 Environment Kernel Node")
-    print(f" {COLORS['PURPLE']}╚═══════════════════════════════════════════════════════════════════════╝{COLORS['RESET']}\n")
+    user_str = f"{config.USER_NAME}@citadel-core"
+    ver_str = f"Citadel OS v{config.VERSION}"
+    cpu_str = sys_info.get('cpu_model', 'N/A')
+    ram_str = sys_info.get('memory', 'N/A')
+    uptime_str = sys_info.get('uptime', 'N/A')
+    host_str = "Citadel Kernel Node"
+    
+    print(f" {purple}╔═════════════════════ СИСТЕМНАЯ СВОДКА CITADEL OS ═════════════════════╗{reset}")
+    print(f"  {green} USER:{reset} {user_str:<25} |  {green}OS:{reset} {ver_str}")
+    print(f"  {green} CPU:{reset} {cpu_str:<26} |  {green}HOST:{reset} {host_str}")
+    print(f"  {green} RAM:{reset} {ram_str:<26} |  {green}UPTIME:{reset} {uptime_str}")
+    print(f" {purple}╚═══════════════════════════════════════════════════════════════════════╝{reset}\n")
 
 def display_help():
     """Вывод таблицы со всеми доступными командами ОС"""
-    print(f"=== {COLORS['PURPLE']}ДОСТУПНЫЕ КОМАНДЫ CITADEL OS{COLORS['RESET']} ===")
-    print("-" * 65)
+    theme_color = get_theme_color()
+    reset = config.COLORS["RESET"]
+    cyan = config.COLORS["CYAN"]
+    
+    print(f"=== {theme_color}ДОСТУПНЫЕ КОМАНДЫ CITADEL OS{reset} ===")
+    print("-" * 75)
     commands = [
-        ("fetch", "Повторный вызов системной сводки FastFetch с мега-логотипом"),
-        ("netscan", "Сканирование устройств локальной сети (system/network.py)"),
-        ("crypto", "Шифрование / расшифровка строк и файлов (apps/crypto.py)"),
-        ("sysmon", "Мониторинг ресурсов и процессов (system/process_mgr.py)"),
-        ("passgen", "Генератор устойчивых к брутфорсу паролей (apps/passgen.py)"),
+        ("fetch", "Повторный вызов системной сводки FastFetch с логотипом"),
+        ("center", "Citadel Center - интерактивный пульт управления системой"),
+        ("pkg", "Управление пакетами (install <p>, update, search <p>, remove <p>)"),
+        ("netscan", "Сканирование устройств локальной сети (Network Center)"),
+        ("ip", "Просмотр сетевых интерфейсов и IP-адресов"),
+        ("sysmon", "Мониторинг ресурсов процессора и оперативной памяти"),
+        ("ps", "Список активных процессов в системе"),
+        ("kill <PID>", "Принудительное завершение процесса по PID"),
+        ("df", "Мониторинг дискового пространства"),
+        ("files", "Интерактивный файловый менеджер (навигация, просмотр)"),
+        ("notes", "Приложение для ведения заметок (создание, чтение, список)"),
+        ("crypto", "Модуль шифрования/дешифрования данных (Security Shield)"),
+        ("passgen", "Генератор безопасных паролей"),
+        ("launcher", "Быстрый запуск внешних приложений разработчика"),
+        ("recovery", "Система резервного копирования и восстановления Citadel"),
+        ("history", "Просмотр истории команд текущей сессии"),
         ("clear", "Очистить экран терминала"),
         ("help", "Показать эту справку по командам"),
         ("exit / q", "Безопасное завершение сессии и выход")
     ]
     for cmd, desc in commands:
-        print(f"  {COLORS['CYAN']}{cmd:<12}{COLORS['RESET']} - {desc}")
-    print("-" * 65 + "\n")
+        print(f"  {cyan}{cmd:<15}{reset} - {desc}")
+    print("-" * 75 + "\n")
