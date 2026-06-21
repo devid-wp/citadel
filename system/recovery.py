@@ -12,7 +12,7 @@ def create_backup():
     os.makedirs(BACKUP_DIR, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUP_DIR, f"config_backup_{timestamp}.py")
-    
+
     try:
         shutil.copy("config.py", backup_file)
         return True, backup_file
@@ -45,21 +45,26 @@ def check_system_integrity():
         "config.py",
         "core/interface.py",
         "core/auth.py",
+        "core/shell_utils.py",
         "system/hardware.py",
         "system/process_mgr.py",
         "system/network.py",
         "system/package_mgr.py",
         "system/recovery.py",
+        "system/geo.py",
+        "system/user_config.py",
+        "system/logger.py",
         "apps/crypto.py",
         "apps/passgen.py",
         "apps/file_browser.py",
         "apps/notes.py",
-        "apps/launcher.py"
+        "apps/launcher.py",
+        "apps/weather.py",
     ]
-    
+
     headers = ["Файл", "Статус", "Размер", "Рекомендация"]
     rows = []
-    
+
     for filepath in critical_files:
         if not os.path.exists(filepath):
             rows.append([filepath, "ОТСУТСТВУЕТ", "0 байт", "Пересоздать / восстановить"])
@@ -69,7 +74,7 @@ def check_system_integrity():
                 rows.append([filepath, "ПУСТОЙ / ПОВРЕЖДЕН", f"{size} байт", "Перезаписать рабочий код"])
             else:
                 rows.append([filepath, "ОК", f"{size} байт", "Действие не требуется"])
-                
+
     return headers, rows
 
 def run_recovery_menu():
@@ -80,7 +85,7 @@ def run_recovery_menu():
         reset = config.COLORS["RESET"]
         green = config.COLORS["GREEN"]
         red = config.COLORS["RED"]
-        
+
         print(f"{theme_color}==================================================")
         print("          СИСТЕМА ВОССТАНОВЛЕНИЯ CITADEL          ")
         print(f"=================================================={reset}")
@@ -89,23 +94,23 @@ def run_recovery_menu():
         print("[2] Создать резервную копию конфигурации (config.py)")
         print("[3] Восстановить конфигурацию из резервной копии")
         print("[B] Вернуться назад (Back)")
-        
+
         choice = input("\nВведите пункт меню: ").strip().lower()
-        
+
         if choice == '1':
             clear_screen()
             print(f"{theme_color}--- Проверка целостности компонентов системы ---{reset}\n")
             headers, rows = check_system_integrity()
             display_table(headers, rows)
-            
+
             any_corrupt = any(r[1] != "ОК" for r in rows)
             if any_corrupt:
                 print(f"\n{red}[ WARNING ]: Обнаружены поврежденные или отсутствующие компоненты!{reset}")
             else:
                 print(f"\n{green}[ SUCCESS ]: Все критические файлы целостны.{reset}")
-                
+
             input("\nНажмите Enter для продолжения...")
-            
+
         elif choice == '2':
             clear_screen()
             print("Создание точки восстановления...")
@@ -116,7 +121,7 @@ def run_recovery_menu():
             else:
                 print(f"{red}[ ERROR ]: Ошибка создания бэкапа: {path}{reset}")
             input("\nНажмите Enter для продолжения...")
-            
+
         elif choice == '3':
             clear_screen()
             backups = get_backups()
@@ -124,16 +129,16 @@ def run_recovery_menu():
                 print("Резервные копии не найдены.")
                 input("\nНажмите Enter для продолжения...")
                 continue
-                
+
             print(f"{theme_color}Доступные точки восстановления:{reset}\n")
             for idx, path in enumerate(backups, 1):
                 mtime = time.ctime(os.path.getmtime(path))
                 print(f"[{idx}] {os.path.basename(path)} (Создан: {mtime})")
-                
+
             select = input("\nВыберите номер бэкапа для восстановления или 'b' для отмены: ").strip()
             if select.lower() == 'b':
                 continue
-                
+
             try:
                 num = int(select)
                 if 1 <= num <= len(backups):
@@ -149,6 +154,6 @@ def run_recovery_menu():
             except ValueError:
                 print("Некорректный ввод.")
             input("\nНажмите Enter для продолжения...")
-            
+
         elif choice == 'b':
             break

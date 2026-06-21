@@ -1,0 +1,35 @@
+[2026-06-21 12:13:11] [INFO    ] Test message from test_all.py
+[2026-06-21 12:13:11] [SECURITY] Test security event
+[2026-06-21 12:22:56] [INFO    ] Test message from test_all.py
+[2026-06-21 12:22:56] [SECURITY] Test security event
+[2026-06-21 12:26:08] [INFO    ] Test message from test_all.py
+[2026-06-21 12:26:08] [SECURITY] Test security event
+[2026-06-21 12:29:51] [INFO    ] Test message from test_all.py
+[2026-06-21 12:29:51] [SECURITY] Test security event
+[2026-06-21 12:30:06] [SECURITY] User logged in successfully
+[2026-06-21 12:30:08] [INFO    ] CMD: admin
+[2026-06-21 12:30:08] [INFO    ] CMD: alias list
+[2026-06-21 12:30:08] [INFO    ] CMD: log
+[2026-06-21 12:30:08] [INFO    ] CMD: lock
+[2026-06-21 12:30:08] [SECURITY] Screen lock requested by user
+[2026-06-21 12:30:16] [SECURITY] User logged in successfully
+[2026-06-21 12:30:18] [INFO    ] CMD: admin
+[2026-06-21 12:30:18] [INFO    ] CMD: weather
+[2026-06-21 12:30:20] [INFO    ] CMD: exit
+[2026-06-21 12:30:20] [SECURITY] User exited Citadel Shell
+[2026-06-21 12:30:29] [SECURITY] User logged in successfully
+[2026-06-21 12:30:30] [INFO    ] CMD: admin
+[2026-06-21 12:30:30] [INFO    ] CMD: alias add ll ls
+[2026-06-21 12:30:30] [INFO    ] CMD: alias add hi history
+[2026-06-21 12:30:30] [INFO    ] CMD: alias list
+[2026-06-21 12:30:30] [INFO    ] CMD: alias remove hi
+[2026-06-21 12:30:30] [INFO    ] CMD: alias list
+[2026-06-21 12:30:30] [INFO    ] CMD: history
+[2026-06-21 12:30:30] [INFO    ] CMD: exit
+[2026-06-21 12:30:30] [SECURITY] User exited Citadel Shell
+[2026-06-21 12:30:59] [INFO    ] Test message from test_all.py
+[2026-06-21 12:30:59] [SECURITY] Test security event
+[2026-06-21 12:33:29] [SECURITY] User logged in successfully
+[2026-06-21 12:33:45] [INFO    ] CMD: weather
+[2026-06-21 12:35:53] [SECURITY] User logged in successfully
+[2026-06-21 12:36:13] [INFO    ] CMD: weather

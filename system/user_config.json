@@ -1,0 +1,26 @@
+{
+    "user_name": "User",
+    "theme_color": "PURPLE",
+    "text_delay": 0.002,
+    "aliases": {
+        "ll": "ls",
+        "la": "ls",
+        "c": "clear",
+        "h": "history",
+        "q": "exit"
+    },
+    "last_location": {
+        "ip": "37.54.31.118",
+        "city": "Kyiv",
+        "region": "Kyiv City",
+        "country": "Ukraine",
+        "country_code": "UA",
+        "lat": 50.458,
+        "lon": 30.5303,
+        "timezone": "Europe/Kyiv",
+        "org": "JSC Ukrtelecom",
+        "source": "ipapi.co",
+        "fetched_at": 1782034579
+    },
+    "favorite_city": null
+}

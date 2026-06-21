@@ -1,35 +1,47 @@
 import os
+import re
 import time
 import subprocess
+import ctypes
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color, display_progress_bar
 from core.auth import change_password
+from system.user_config import set_user_pref, get_user_pref
 
 def update_config_value(key, value, is_string=True):
-    """Обновляет значение в config.py"""
+    """Обновляет значение пользовательских настроек (user_config.json + config.py)."""
+    # USER_NAME и THEME_COLOR сохраняются в user_config.json (безопаснее, чем писать в config.py).
+    # PASSWORD_HASH обрабатывается в core/auth.py и не должен идти через эту функцию.
+    if key in ("USER_NAME", "THEME_COLOR", "TEXT_DELAY"):
+        if set_user_pref(key.lower() if key != "USER_NAME" else "user_name", value):
+            # Зеркалим в config для текущей сессии (читается напрямую во многих местах).
+            setattr(config, key, value)
+            return True
+        return False
+
+    # Фолбэк: legacy путь — писать прямо в config.py.
     config_path = "config.py"
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-            
+
         new_lines = []
         replaced = False
         val_str = f'"{value}"' if is_string else str(value)
-        
+
         for line in lines:
             if line.strip().startswith(f"{key} ="):
                 new_lines.append(f'{key} = {val_str}\n')
                 replaced = True
             else:
                 new_lines.append(line)
-                
+
         if not replaced:
             new_lines.append(f'\n{key} = {val_str}\n')
-            
+
         with open(config_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
-            
-        # Обновляем в текущей сессии
+
         setattr(config, key, value)
         return True
     except Exception as e:
