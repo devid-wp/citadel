@@ -19,6 +19,8 @@ from datetime import datetime
 
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color
+from core.theme_state import get_theme_state
+from rendering.draw_utils import styled_print
 from system.geo import get_location, format_location
 
 USER_AGENT = "CitadelOS/3.0 (weather)"
@@ -226,20 +228,18 @@ def run_weather_app():
     """Главная точка входа модуля погоды."""
     clear_screen()
     theme_color = get_theme_color()
-    reset = config.COLORS["RESET"]
-    yellow = config.COLORS["YELLOW"]
-    cyan = config.COLORS["CYAN"]
-    green = config.COLORS["GREEN"]
-    red = config.COLORS["RED"]
+    palette = get_theme_state().current_palette
+    reset = palette.reset
+    accent = palette.accent  # в DAY/EVENING=YELLOW, в NIGHT=RED
 
     print(f"{theme_color}=========================================")
     print("         CITADEL WEATHER ENGINE v1.0    ")
     print(f"========================================={reset}\n")
 
-    print(f"{cyan}[1]{reset} Автоматически определить моё местоположение по IP")
-    print(f"{cyan}[2]{reset} Ввести координаты вручную (lat, lon)")
-    print(f"{cyan}[3]{reset} Найти город по названию")
-    print(f"{cyan}[B]{reset} Назад")
+    print(f"{accent}[1]{reset} Автоматически определить моё местоположение по IP")
+    print(f"{accent}[2]{reset} Ввести координаты вручную (lat, lon)")
+    print(f"{accent}[3]{reset} Найти город по названию")
+    print(f"{accent}[B]{reset} Назад")
 
     choice = input("\nВыберите режим: ").strip().lower()
 
@@ -249,15 +249,15 @@ def run_weather_app():
     if choice == "b":
         return
     elif choice == "1":
-        terminal_print("[ INFO ]: Определяю ваш публичный IP-адрес...", color_code=yellow)
+        terminal_print("[ INFO ]: Определяю ваш публичный IP-адрес...", color_code=accent)
         loc = get_location(force_refresh=True)
         if not loc:
-            print(f"\n{red}[ ERROR ]: Не удалось определить локацию. Проверьте интернет-соединение или введите данные вручную.{reset}")
+            print(f"\n{accent}[ ERROR ]: Не удалось определить локацию. Проверьте интернет-соединение или введите данные вручную.{reset}")
             input("\nНажмите Enter для возврата...")
             return
         lat, lon = loc["lat"], loc["lon"]
         place = ", ".join(filter(None, [loc.get("city"), loc.get("country")])) or "ваше местоположение"
-        print(f"\n{green}[ OK ]{reset}  Локация определена:")
+        print(f"\n{accent}[ OK ]{reset}  Локация определена:")
         print(format_location(loc))
     elif choice == "2":
         try:
@@ -265,15 +265,15 @@ def run_weather_app():
             lon = float(input("Долгота (lon): ").strip().replace(",", "."))
             place = f"{lat:.4f}, {lon:.4f}"
         except ValueError:
-            print(f"\n{red}[ ERROR ]: Некорректные координаты.{reset}")
+            print(f"\n{accent}[ ERROR ]: Некорректные координаты.{reset}")
             input("\nНажмите Enter для возврата...")
             return
     elif choice == "3":
         name = input("Введите название города (например, Москва): ").strip()
-        terminal_print(f"[ INFO ]: Ищу '{name}'...", color_code=yellow)
+        terminal_print(f"[ INFO ]: Ищу '{name}'...", color_code=accent)
         g = geocode_city(name)
         if not g:
-            print(f"\n{red}[ ERROR ]: Город '{name}' не найден.{reset}")
+            print(f"\n{accent}[ ERROR ]: Город '{name}' не найден.{reset}")
             input("\nНажмите Enter для возврата...")
             return
         lat, lon = g["lat"], g["lon"]
@@ -281,10 +281,10 @@ def run_weather_app():
     else:
         return
 
-    print(f"\n{cyan}[ INFO ]{reset}: Запрашиваю прогноз для {place}...")
+    print(f"\n{accent}[ INFO ]{reset}: Запрашиваю прогноз для {place}...")
     weather = fetch_weather(lat, lon)
     if not weather:
-        print(f"\n{red}[ ERROR ]: Не удалось получить погоду. Сервис недоступен.{reset}")
+        print(f"\n{accent}[ ERROR ]: Не удалось получить погоду. Сервис недоступен.{reset}")
         input("\nНажмите Enter для возврата...")
         return
 
@@ -293,7 +293,7 @@ def run_weather_app():
     print("         CITADEL WEATHER — СВОДКА        ")
     print(f"========================================={reset}\n")
 
-    terminal_print(render_current(weather, place), color_code=green, delay=0.001)
+    terminal_print(render_current(weather, place), color_code=accent, delay=0.001)
 
     # Почасовой прогноз на сегодня
     hourly_rows = render_hourly_today(weather)

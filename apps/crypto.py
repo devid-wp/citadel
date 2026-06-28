@@ -4,6 +4,8 @@ import base64
 import hashlib
 import config
 from core.interface import clear_screen, terminal_print, get_theme_color, display_progress_bar
+from core.theme_state import get_theme_state
+from rendering.draw_utils import styled_print
 
 # Реальное AES-шифрование с аутентификацией (Fernet = AES-128-CBC + HMAC-SHA256).
 # Заменяет уязвимый XOR из предыдущей версии.
@@ -164,20 +166,21 @@ def run_crypto_module():
     while True:
         clear_screen()
         theme_color = get_theme_color()
-        reset = config.COLORS["RESET"]
-        green = config.COLORS["GREEN"]
-        red = config.COLORS["RED"]
-        yellow = config.COLORS["YELLOW"]
+        palette = get_theme_state().current_palette
+        reset = palette.reset
+        # accent: в DAY/EVENING — YELLOW, в NIGHT — RED (используем и для
+        # «успеха», и для «ошибки», и для «предупреждения»).
+        accent = palette.accent
 
         backend = "Fernet (AES-128-CBC + HMAC-SHA256)" if _HAS_CRYPTO else "XOR (FALLBACK — установите 'cryptography')"
 
         print(f"{theme_color}=========================================")
         print("         SECURE CRYPTO-SHIELD SYSTEM     ")
         print(f"========================================={reset}")
-        print(f"\nАлгоритм: {yellow}{backend}{reset}")
+        print(f"\nАлгоритм: {accent}{backend}{reset}")
         if not _HAS_CRYPTO:
-            print(f"{red}ВНИМАНИЕ: cryptography не установлена. Шифрование небезопасно!{reset}")
-            print(f"Установите: {cyan}pip install cryptography{reset}".replace("{cyan}", "").replace("{reset}", ""))
+            print(f"{accent}ВНИМАНИЕ: cryptography не установлена. Шифрование небезопасно!{reset}")
+            print(f"Установите: {accent}pip install cryptography{reset}")
 
         print("\n[1] Зашифровать строку данных (Encrypt)")
         print("[2] Расшифровать строку данных (Decrypt)")
@@ -200,7 +203,7 @@ def run_crypto_module():
                 print(f"ЗАШИФРОВАННЫЙ ПОТОК (скопируйте целиком):\n{coded}")
                 print("=" * 50)
             except Exception as e:
-                print(f"{red}[ ERROR ]: {e}{reset}")
+                print(f"{accent}[ ERROR ]: {e}{reset}")
             input("\nНажмите Enter для продолжения...")
 
         elif choice == '2':
@@ -214,12 +217,12 @@ def run_crypto_module():
             try:
                 decoded = decrypt_string(coded_input, key)
                 print("\n" + "=" * 50)
-                terminal_print(f"РАСШИФРОВАННЫЕ ДАННЫЕ:\n{decoded}", color_code=green)
+                terminal_print(f"РАСШИФРОВАННЫЕ ДАННЫЕ:\n{decoded}", color_code=accent)
                 print("=" * 50)
             except ValueError as e:
-                terminal_print(f"\n[ ERROR ]: {e}", color_code=red)
+                terminal_print(f"\n[ ERROR ]: {e}", color_code=accent)
             except Exception as e:
-                terminal_print(f"\n[ ERROR ]: Ошибка декодирования ({e}).", color_code=red)
+                terminal_print(f"\n[ ERROR ]: Ошибка декодирования ({e}).", color_code=accent)
             input("\nНажмите Enter для продолжения...")
 
         elif choice == '3':
@@ -232,7 +235,7 @@ def run_crypto_module():
 
             display_progress_bar(0.8, "Шифрование файла")
             ok, msg = encrypt_file(filepath, key)
-            print(f"{green if ok else red}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
+            print(f"{accent}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
             input("\nНажмите Enter для продолжения...")
 
         elif choice == '4':
@@ -245,7 +248,7 @@ def run_crypto_module():
 
             display_progress_bar(0.8, "Расшифровка файла")
             ok, msg = decrypt_file(filepath, key)
-            print(f"{green if ok else red}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
+            print(f"{accent}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
             input("\nНажмите Enter для продолжения...")
 
         elif choice == 'b':

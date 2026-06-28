@@ -38,6 +38,11 @@ from apps.launcher import run_command_launcher
 from apps.center import run_citadel_center
 from apps.weather import run_weather_app
 
+# AR-HUD subsystem: модули адаптивной тематизации и реестр.
+from core.theme_state import get_theme_state
+from core.interface import get_registry
+from modules.env_awareness_module import EnvAwarenessModule
+
 
 # Список для хранения истории команд текущей сессии.
 # Сохраняется также в readline-истории (стрелки вверх/вниз работают по умолчанию).
@@ -185,6 +190,19 @@ def main():
     # Шаг 1: Авторизация
     login_screen()
     log_security("User logged in successfully")
+
+    # Шаг 1.5: Запуск EnvAwarenessModule — адаптивная палитра под время суток.
+    # Делаем это ДО display_fastfetch(), чтобы первая отрисовка уже
+    # учитывала актуальную тему. Модуль — daemon-поток, выключится сам
+    # при выходе из процесса; явный stop() вызывается в финализаторе.
+    registry = get_registry()
+    env_module = EnvAwarenessModule()
+    registry.register(env_module)
+    registry.start_all()
+    log_security(
+        f"EnvAwarenessModule started, current theme: "
+        f"{get_theme_state().current_theme.value}"
+    )
 
     # Установка Tab-дополнения
     install_completer()
@@ -384,3 +402,12 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n[ EXIT ]: Принудительное завершение.")
+    finally:
+        # Корректная остановка HUD-модулей. На случай, если процесс
+        # прерывается до завершения main() (например, по Ctrl-C в
+        # начале сессии) — get_registry() всё равно вернёт singleton
+        # с зарегистрированными модулями.
+        try:
+            get_registry().stop_all()
+        except Exception:
+            pass

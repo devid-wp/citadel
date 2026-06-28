@@ -6,7 +6,9 @@ import ctypes
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color, display_progress_bar
 from core.auth import change_password
+from core.theme_state import get_theme_state
 from system.user_config import set_user_pref, get_user_pref
+from rendering.draw_utils import styled_print
 
 def update_config_value(key, value, is_string=True):
     """Обновляет значение пользовательских настроек (user_config.json + config.py)."""
@@ -52,11 +54,11 @@ def run_security_audit():
     """Аудит безопасности системы (Security Agent)"""
     clear_screen()
     theme_color = get_theme_color()
-    reset = config.COLORS["RESET"]
-    yellow = config.COLORS["YELLOW"]
-    red = config.COLORS["RED"]
-    green = config.COLORS["GREEN"]
-    
+    palette = get_theme_state().current_palette
+    reset = palette.reset
+    accent = palette.accent
+
+
     print(f"{theme_color}==================================================")
     print("           АУДИТ БЕЗОПАСНОСТИ CITADEL OS          ")
     print(f"=================================================={reset}\n")
@@ -127,12 +129,12 @@ def run_security_audit():
     any_medium = any(r[2] == "СРЕДНИЙ" for r in rows)
     
     if any_high:
-        print(f"\n{red}[ WARNING ]: Обнаружены критические уязвимости безопасности! Примите меры.{reset}")
+        print(f"\n{accent}[ WARNING ]: Обнаружены критические уязвимости безопасности! Примите меры.{reset}")
     elif any_medium:
-        print(f"\n{yellow}[ WARNING ]: Найдены предупреждения средней критичности.{reset}")
+        print(f"\n{accent}[ WARNING ]: Найдены предупреждения средней критичности.{reset}")
     else:
-        print(f"\n{green}[ SUCCESS ]: Аудит успешно пройден. Уязвимостей не обнаружено.{reset}")
-        
+        print(f"\n{accent}[ SUCCESS ]: Аудит успешно пройден. Уязвимостей не обнаружено.{reset}")
+
     input("\nНажмите Enter для продолжения...")
 
 def run_citadel_center():
@@ -140,33 +142,34 @@ def run_citadel_center():
     while True:
         clear_screen()
         theme_color = get_theme_color()
-        reset = config.COLORS["RESET"]
-        green = config.COLORS["GREEN"]
-        cyan = config.COLORS["CYAN"]
-        
+        palette = get_theme_state().current_palette
+        reset = palette.reset
+        accent = palette.accent
+
+
         print(f"{theme_color}==================================================")
         print("          CITADEL CENTER - ЦЕНТР УПРАВЛЕНИЯ       ")
         print(f"=================================================={reset}")
-        print(f"Пользователь: {config.COLORS['BLUE']}{config.USER_NAME}{reset} | Тема оформления: {theme_color}{config.THEME_COLOR}{reset}\n")
-        
+        print(f"Пользователь: {accent}{config.USER_NAME}{reset} | Тема оформления: {theme_color}{config.THEME_COLOR}{reset}\n")
+
         print("[1] Изменить имя пользователя")
         print("[2] Сменить цветовую тему терминала")
         print("[3] Сменить пароль администратора")
         print("[4] Запустить аудит безопасности (Security Audit)")
         print("[B] Вернуться в главное меню (Back)")
-        
+
         choice = input("\nВыберите раздел настроек: ").strip().lower()
-        
+
         if choice == '1':
             clear_screen()
             new_name = input("Введите новое имя пользователя: ").strip()
             if new_name:
                 if update_config_value("USER_NAME", new_name):
-                    print(f"\n{green}[ SUCCESS ]: Имя пользователя успешно изменено на '{new_name}'.{reset}")
+                    print(f"\n{accent}[ SUCCESS ]: Имя пользователя успешно изменено на '{new_name}'.{reset}")
                 else:
                     print("\n[ ERROR ]: Не удалось обновить имя пользователя.")
             time.sleep(1)
-            
+
         elif choice == '2':
             clear_screen()
             print("Доступные темы оформления:")
@@ -174,14 +177,14 @@ def run_citadel_center():
             for idx, theme in enumerate(available_themes, 1):
                 c = config.COLORS[theme]
                 print(f"[{idx}] {c}{theme}{reset}")
-                
+
             theme_choice = input("\nВыберите номер темы: ").strip()
             try:
                 idx = int(theme_choice)
                 if 1 <= idx <= len(available_themes):
                     selected = available_themes[idx - 1]
                     if update_config_value("THEME_COLOR", selected):
-                        print(f"\n{green}[ SUCCESS ]: Тема успешно изменена на {config.COLORS[selected]}{selected}{reset}.")
+                        print(f"\n{accent}[ SUCCESS ]: Тема успешно изменена на {config.COLORS[selected]}{selected}{reset}.")
                     else:
                         print("\n[ ERROR ]: Не удалось изменить тему.")
                 else:
@@ -189,26 +192,26 @@ def run_citadel_center():
             except ValueError:
                 print("Некорректный ввод.")
             time.sleep(1.5)
-            
+
         elif choice == '3':
             clear_screen()
             print(f"{theme_color}=== СМЕНА ПАРОЛЯ АДМИНИСТРАТОРА ==={reset}\n")
             old_pass = input("Введите текущий пароль: ").strip()
             new_pass = input("Введите новый пароль: ").strip()
             confirm_pass = input("Подтвердите новый пароль: ").strip()
-            
+
             if new_pass != confirm_pass:
-                print(f"\n{config.COLORS['RED']}[ ERROR ]: Новые пароли не совпадают!{reset}")
+                print(f"\n{accent}[ ERROR ]: Новые пароли не совпадают!{reset}")
             else:
                 success, msg = change_password(old_pass, new_pass)
                 if success:
-                    print(f"\n{green}[ SUCCESS ]: {msg}{reset}")
+                    print(f"\n{accent}[ SUCCESS ]: {msg}{reset}")
                 else:
-                    print(f"\n{config.COLORS['RED']}[ ERROR ]: {msg}{reset}")
+                    print(f"\n{accent}[ ERROR ]: {msg}{reset}")
             time.sleep(2)
-            
+
         elif choice == '4':
             run_security_audit()
-            
+
         elif choice == 'b':
             break

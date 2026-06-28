@@ -1,6 +1,8 @@
 import os
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color
+from core.theme_state import get_theme_state
+from rendering.draw_utils import styled_print
 
 NOTES_DIR = "system/notes"
 
@@ -11,10 +13,11 @@ def run_notes_app():
     while True:
         clear_screen()
         theme_color = get_theme_color()
-        reset = config.COLORS["RESET"]
-        green = config.COLORS["GREEN"]
-        red = config.COLORS["RED"]
-        
+        palette = get_theme_state().current_palette
+        reset = palette.reset
+        accent = palette.accent
+
+
         print(f"{theme_color}=========================================")
         print("          БЛОКНОТ CITADEL NOTES          ")
         print(f"========================================={reset}")
@@ -99,9 +102,9 @@ def run_notes_app():
             try:
                 with open(os.path.join(NOTES_DIR, filename), "w", encoding="utf-8") as f:
                     f.write(content)
-                print(f"\n{green}[ SUCCESS ]: Заметка '{title}' успешно сохранена!{reset}")
+                print(f"\n{accent}[ SUCCESS ]: Заметка '{title}' успешно сохранена!{reset}")
             except Exception as e:
-                print(f"\n{red}[ ERROR ]: Не удалось сохранить заметку: {e}{reset}")
+                print(f"\n{accent}[ ERROR ]: Не удалось сохранить заметку: {e}{reset}")
             input("\nНажмите Enter для продолжения...")
             
         elif choice == '4':
@@ -124,10 +127,10 @@ def run_notes_app():
                 num = int(select)
                 if 1 <= num <= len(notes):
                     target_note = notes[num - 1]
-                    confirm = input(f"{red}Вы действительно хотите удалить '{target_note[:-4]}'? (y/n): {reset}").strip().lower()
+                    confirm = input(f"{accent}Вы действительно хотите удалить '{target_note[:-4]}'? (y/n): {reset}").strip().lower()
                     if confirm == 'y':
                         os.remove(os.path.join(NOTES_DIR, target_note))
-                        print(f"{green}Заметка успешно удалена.{reset}")
+                        print(f"{accent}Заметка успешно удалена.{reset}")
                 else:
                     print("Неверный номер.")
             except ValueError:

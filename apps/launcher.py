@@ -3,15 +3,16 @@ import subprocess
 import time
 import config
 from core.interface import clear_screen, terminal_print, get_theme_color
+from core.theme_state import get_theme_state
 
 def run_command_launcher():
     """Модуль быстрого запуска приложений"""
     is_win = os.name == 'nt'
-    
+
     while True:
         clear_screen()
         theme_color = get_theme_color()
-        reset = config.COLORS["RESET"]
+        reset = get_theme_state().current_palette.reset
         
         print(f"{theme_color}=========================================")
         print("           CITADEL COMMAND LAUNCHER      ")

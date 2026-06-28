@@ -10,7 +10,7 @@
         "q": "exit"
     },
     "last_location": {
-        "ip": "37.54.31.118",
+        "ip": "213.110.135.224",
         "city": "Kyiv",
         "region": "Kyiv City",
         "country": "Ukraine",
@@ -18,9 +18,9 @@
         "lat": 50.458,
         "lon": 30.5303,
         "timezone": "Europe/Kyiv",
-        "org": "JSC Ukrtelecom",
+        "org": "SUNNET LLC",
         "source": "ipapi.co",
-        "fetched_at": 1782034579
+        "fetched_at": 1782567687
     },
     "favorite_city": null
 }

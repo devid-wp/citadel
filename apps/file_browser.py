@@ -2,28 +2,30 @@ import os
 import shutil
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color
+from core.theme_state import get_theme_state
+from rendering.draw_utils import styled_print
 
 def run_file_browser():
     """Интерактивный файловый браузер для консоли Citadel"""
     current_dir = os.getcwd()
-    
+
     while True:
         clear_screen()
         theme_color = get_theme_color()
-        reset = config.COLORS["RESET"]
-        cyan = config.COLORS["CYAN"]
-        red = config.COLORS["RED"]
-        green = config.COLORS["GREEN"]
-        
+        palette = get_theme_state().current_palette
+        reset = palette.reset
+        accent = palette.accent  # в DAY/EVENING=YELLOW, в NIGHT=RED
+
+
         print(f"{theme_color}==================================================")
         print("          ФАЙЛОВЫЙ МЕНЕДЖЕР CITADEL OS            ")
         print(f"=================================================={reset}")
-        print(f"Текущая директория: {config.COLORS['BLUE']}{current_dir}{reset}\n")
+        print(f"Текущая директория: {accent}{current_dir}{reset}\n")
         
         try:
             items = os.listdir(current_dir)
         except Exception as e:
-            print(f"{red}[ ERROR ]: Не удалось прочитать директорию: {e}{reset}")
+            print(f"{accent}[ ERROR ]: Не удалось прочитать директорию: {e}{reset}")
             input("\nНажмите Enter для возврата...")
             return
             
@@ -59,11 +61,11 @@ def run_file_browser():
         display_table(headers, rows)
         
         print("\nДоступные команды:")
-        print(f"  {cyan}cd <имя>{reset}  - перейти в папку (или cd ..)")
-        print(f"  {cyan}view <имя>{reset}- прочитать файл")
-        print(f"  {cyan}mkdir <имя>{reset}- создать папку")
-        print(f"  {cyan}rm <имя>{reset}  - удалить файл или пустую папку")
-        print(f"  {cyan}b{reset}          - выход в главное меню")
+        print(f"  {accent}cd <имя>{reset}  - перейти в папку (или cd ..)")
+        print(f"  {accent}view <имя>{reset}- прочитать файл")
+        print(f"  {accent}mkdir <имя>{reset}- создать папку")
+        print(f"  {accent}rm <имя>{reset}  - удалить файл или пустую папку")
+        print(f"  {accent}b{reset}          - выход в главное меню")
         
         cmd_input = input("\nCitadel FileBrowser $> ").strip()
         if not cmd_input:
@@ -86,7 +88,7 @@ def run_file_browser():
                 if os.path.isdir(target):
                     current_dir = os.path.abspath(target)
                 else:
-                    print(f"{red}Папка '{arg}' не найдена.{reset}")
+                    print(f"{accent}Папка '{arg}' не найдена.{reset}")
                     time.sleep(1)
                     
         elif action == 'view':
@@ -102,11 +104,11 @@ def run_file_browser():
                     with open(target, "r", encoding="utf-8", errors="ignore") as f:
                         print(f.read())
                 except Exception as e:
-                    print(f"{red}Ошибка при чтении файла: {e}{reset}")
+                    print(f"{accent}Ошибка при чтении файла: {e}{reset}")
                 print(f"\n{theme_color}------------------------------------{reset}")
                 input("\nНажмите Enter для продолжения...")
             else:
-                print(f"{red}Файл '{arg}' не найден.{reset}")
+                print(f"{accent}Файл '{arg}' не найден.{reset}")
                 time.sleep(1)
                 
         elif action == 'mkdir':
@@ -117,25 +119,25 @@ def run_file_browser():
             target = os.path.join(current_dir, arg)
             try:
                 os.makedirs(target, exist_ok=True)
-                print(f"{green}Папка создана.{reset}")
+                print(f"{accent}Папка создана.{reset}")
             except Exception as e:
-                print(f"{red}Ошибка: {e}{reset}")
+                print(f"{accent}Ошибка: {e}{reset}")
             time.sleep(1)
-            
+
         elif action == 'rm':
             if not arg:
                 print("Укажите имя для удаления.")
                 time.sleep(1)
                 continue
             target = os.path.join(current_dir, arg)
-            confirm = input(f"{red}Вы уверены, что хотите удалить '{arg}'? (y/n): {reset}").strip().lower()
+            confirm = input(f"{accent}Вы уверены, что хотите удалить '{arg}'? (y/n): {reset}").strip().lower()
             if confirm == 'y':
                 try:
                     if os.path.isdir(target):
                         os.rmdir(target)
                     else:
                         os.remove(target)
-                    print(f"{green}Успешно удалено.{reset}")
+                    print(f"{accent}Успешно удалено.{reset}")
                 except Exception as e:
-                    print(f"{red}Ошибка при удалении: {e}{reset}")
+                    print(f"{accent}Ошибка при удалении: {e}{reset}")
                 time.sleep(1)

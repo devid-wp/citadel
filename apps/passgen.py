@@ -2,6 +2,8 @@ import random
 import string
 import config
 from core.interface import clear_screen, terminal_print, get_theme_color
+from core.theme_state import get_theme_state
+from rendering.draw_utils import styled_print
 
 def generate_password(length, use_upper=True, use_lower=True, use_digits=True, use_special=True):
     """Генерация надежного пароля по заданным параметрам"""
@@ -39,26 +41,27 @@ def run_passgen():
     """Интерактивный генератор устойчивых паролей"""
     clear_screen()
     theme_color = get_theme_color()
-    reset = config.COLORS["RESET"]
-    green = config.COLORS["GREEN"]
-    
+    palette = get_theme_state().current_palette
+    reset = palette.reset
+    green = palette.accent  # акцент (в NIGHT — RED, иначе YELLOW)
+
     print(f"{theme_color}=========================================")
     print("        SECURE PASSWORD GENERATOR        ")
     print(f"========================================={reset}\n")
-    
+
     try:
         length = int(input("Введите длину пароля (рекомендуется от 12): ").strip())
         if length < 4:
             length = 8
     except ValueError:
         length = 12
-        
+
     use_upper = input("Включать заглавные буквы (A-Z)? (y/n): ").strip().lower() != 'n'
     use_digits = input("Включать цифры (0-9)? (y/n): ").strip().lower() != 'n'
     use_special = input("Включать спецсимволы (!@#$%^&*)? (y/n): ").strip().lower() == 'y'
-    
+
     password = generate_password(length, use_upper, True, use_digits, use_special)
-    
+
     print("\n" + "-"*40)
     terminal_print(f"СГЕНЕРИРОВАННЫЙ ПАРОЛЬ: {password}", color_code=green)
     print("-"*40)

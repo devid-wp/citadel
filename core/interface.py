@@ -22,8 +22,29 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def get_theme_color():
-    theme = getattr(config, 'THEME_COLOR', 'PURPLE')
-    return config.COLORS.get(theme, config.COLORS["PURPLE"])
+    """
+    Вернуть ANSI-код «основного» цвета текущей темы окружения.
+
+    Приоритет:
+      1. ThemeState.current_palette.primary — если модуль уже инициализирован.
+      2. config.THEME_COLOR (legacy) — фолбэк, чтобы функции отрисовки
+         работали даже без EnvAwarenessModule (например, в тестах).
+
+    Это ЕДИНСТВЕННАЯ точка, через которую остальной код берёт основной
+    цвет. Переписывать вызовы get_theme_color() в модулях не нужно —
+    достаточно запустить EnvAwarenessModule, и все они автоматически
+    подхватят смену темы.
+    """
+    try:
+        # Ленивый импорт, чтобы избежать циклических зависимостей
+        # core.interface ↔ core.theme_state.
+        from core.theme_state import get_theme_state
+        palette = get_theme_state().current_palette
+        return palette.primary
+    except Exception:
+        # Fallback на legacy-путь (config.THEME_COLOR).
+        theme = getattr(config, 'THEME_COLOR', 'PURPLE')
+        return config.COLORS.get(theme, config.COLORS["PURPLE"])
 
 def terminal_print(text, delay=None, color_code=None):
     if delay is None:
@@ -141,6 +162,110 @@ def display_fastfetch(sys_info):
     print(f"  {green} CPU:{reset} {cpu_str:<26} |  {green}HOST:{reset} {host_str}")
     print(f"  {green} RAM:{reset} {ram_str:<26} |  {green}UPTIME:{reset} {uptime_str}")
     print(f" {purple}╚═══════════════════════════════════════════════════════════════════════╝{reset}\n")
+
+# ============================================================================
+# AR-HUD module contract (добавлено для рефакторинга EnvAwarenessModule)
+# ============================================================================
+#
+# Принцип: существующий Citadel — TUI-шелл. Мы НЕ ломаем его, а вводим
+# параллельный слой "модулей HUD", который может использовать тот же слой
+# отрисовки (см. rendering/draw_utils.py). IHUDModule — общий контракт
+# для всех модулей HUD. EnvAwarenessModule и ClockModule реализуют его.
+
+from abc import ABC, abstractmethod
+from typing import Optional
+
+class IHUDModule(ABC):
+    """
+    Базовый контракт для всех AR-HUD модулей.
+
+    Жизненный цикл модуля:
+        1. Конструктор (без побочных эффектов — не стартует фоновые потоки).
+        2. start() — модуль подписывается на события, запускает воркеры.
+        3. update(dt) — вызывается главным циклом HUD каждый кадр.
+        4. render(surface) — модуль отрисовывает себя на канвас.
+        5. stop() — корректная остановка, отписка от событий.
+
+    Метод get_state() — для отладки и health-check.
+    """
+
+    name: str = "base"
+
+    @abstractmethod
+    def start(self) -> None:
+        """Запустить модуль: подписки, потоки, таймеры."""
+
+    @abstractmethod
+    def update(self, dt: float) -> None:
+        """
+        Кадровый апдейт. dt — секунды с прошлого вызова.
+        Тяжёлых операций здесь быть не должно.
+        """
+
+    @abstractmethod
+    def render(self, surface=None) -> None:
+        """
+        Отрисовка модуля. Параметр surface зарезервирован для будущего
+        канваса (PIL/Pygame); пока допускается None для текстового режима.
+        """
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Остановить модуль и освободить ресурсы."""
+
+    def get_state(self) -> dict:
+        """Состояние модуля для health-check. По умолчанию — только имя."""
+        return {"name": self.name, "running": True}
+
+
+class ModuleRegistry:
+    """
+    Простой реестр активных HUD-модулей. Один инстанс на процесс (см.
+    get_registry() ниже). Потокобезопасность обеспечивается внешним кодом —
+    мы держим API последовательным и без блокировок внутри.
+    """
+
+    def __init__(self) -> None:
+        self._modules: list[IHUDModule] = []
+
+    def register(self, module: IHUDModule) -> None:
+        if any(m.name == module.name for m in self._modules):
+            raise ValueError(f"Module '{module.name}' already registered")
+        self._modules.append(module)
+
+    def start_all(self) -> None:
+        for m in self._modules:
+            m.start()
+
+    def update_all(self, dt: float) -> None:
+        for m in self._modules:
+            m.update(dt)
+
+    def render_all(self, surface=None) -> None:
+        for m in self._modules:
+            m.render(surface)
+
+    def stop_all(self) -> None:
+        for m in self._modules:
+            m.stop()
+
+    def get(self, name: str) -> Optional[IHUDModule]:
+        for m in self._modules:
+            if m.name == name:
+                return m
+        return None
+
+
+_REGISTRY: Optional[ModuleRegistry] = None
+
+
+def get_registry() -> ModuleRegistry:
+    """Ленивая инициализация реестра модулей (синглтон на процесс)."""
+    global _REGISTRY
+    if _REGISTRY is None:
+        _REGISTRY = ModuleRegistry()
+    return _REGISTRY
+
 
 def display_help():
     """Вывод таблицы со всеми доступными командами ОС"""
