@@ -50,6 +50,7 @@ from .shell_pipeline import (
     PipelineStage, ParsedCommand, PipelineError,
     parse_pipeline, execute_pipeline, execute_commandline,
 )
+from .shell_glob import expand_tokens as expand_glob_tokens
 
 
 # Известные команды Citadel — для Tab-дополнения.
@@ -154,6 +155,23 @@ def resolve_command(user_input: str) -> str:
     return " ".join(expanded)
 
 
+def expand_command(user_input: str) -> List[str]:
+    """
+    Раскрыть алиас в первой позиции и вернуть список токенов (List[str]).
+    Полезно для тестов и интеграций, где нужно увидеть результат без исполнения.
+
+    Args:
+        user_input: сырая команда (например, "g commit msg").
+
+    Returns:
+        Список токенов после раскрытия алиаса (например, ["git", "commit", "msg"]).
+    """
+    parts = user_input.strip().split()
+    if not parts:
+        return []
+    return expand_alias_tokens(parts, get_alias_map())
+
+
 # ============================================================================
 # НОВОЕ: единая точка входа run_command()
 # ============================================================================
@@ -208,27 +226,7 @@ def run_command(
     if not line:
         return 0
 
-    # ----- Alias assignment: `name = body` -----
-    if "=" in line and not line.startswith(("==", ">", "<")):
-        first_tok, _, rest = line.partition("=")
-        left = first_tok.strip()
-        right = rest.strip()
-        if (
-            left
-            and " " not in left
-            and "|" not in line
-            and ">" not in line and "<" not in line
-            and ";" not in line
-        ):
-            from .shell_alias import add_alias
-            try:
-                add_alias(left, right)
-                return 0
-            except Exception as e:  # noqa: BLE001
-                sys.stderr.write(f"citadel: cannot set alias: {e}\n")
-                return 1
-
-    # ----- Variable assignment: NAME=value -----
+    # ----- Variable assignment: NAME=value (без операторов внутри) -----
     if "=" in line and not line.startswith(("==", ">", "<")):
         first_tok, _, rest = line.partition("=")
         left = first_tok.strip()
@@ -268,16 +266,33 @@ def run_command(
     var_store = store or get_default_store()
     tokens = var_store.expand_tokens(result.tokens)
 
-    # ----- 3. Alias expansion (первый токен) -----
+    # ----- 2.5. Glob expansion — развернуть *.py и подобные в списки файлов -----
+    tokens = expand_glob_tokens(tokens, cwd=os.getcwd())
+
+    # ----- 3. Detect alias on first word (для последующего re-merge) -----
+    original_first_word = ""
+    for t in tokens:
+        if t.kind == "word":
+            original_first_word = t.value
+            break
+
     argv = [t.value for t in tokens if t.kind == "word"]
     argv = expand_alias_tokens(argv, get_alias_map())
     if not argv:
         return 0
 
+    # ----- 3.0. Re-merge: подменить первое слово на argv после алиаса -----
+    if argv[0] != original_first_word and original_first_word:
+        tokens = _remerge_after_alias(line, argv)
+
     # ----- 3a. Builtin dispatch -----
     rc = _try_builtin(argv)
     if rc is not None:
         return rc
+
+    # ----- 3a-extra. alias builtin (list/add/remove) -----
+    if argv[0] == "alias":
+        return _builtin_alias(argv[1:])
 
     # ----- 3b. cd -----
     if argv[0] == "cd":
@@ -333,15 +348,24 @@ def run_command(
     if argv[0] == "type":
         return _builtin_type(argv[1:], var_store)
 
+    # ----- 3e. Background job management -----
+    if argv[0] == "jobs":
+        return _builtin_jobs(argv[1:])
+    if argv[0] == "kill":
+        return _builtin_kill(argv[1:])
+    if argv[0] == "wait":
+        return _builtin_wait(argv[1:])
+
     # ----- 4. Pipeline execution -----
     pending = (history or get_default_history()).begin(line)
     try:
-        flat_tokens = _flat_tokens_from_argv(argv, tokens)
+        # tokens уже корректные (с re-merge операторов после алиаса).
         rc = execute_commandline(
-            flat_tokens,
+            tokens,
             env=var_store.as_env(),
             cwd=os.getcwd(),
             on_line=on_line,
+            raw_command=line,
         )
     except PipelineError as e:
         sys.stderr.write(f"citadel: {e}\n")
@@ -358,6 +382,180 @@ def run_command(
         (history or get_default_history()).finish(pending, exit_code=rc)
 
     return rc
+
+
+def _builtin_jobs(args: List[str]) -> int:
+    """
+    Builtin `jobs` — список фоновых job'ов.
+
+    Флаги:
+        jobs       → только активные (running)
+        jobs -l    → все (включая exited)
+        jobs -a    → все
+    """
+    from .shell_jobs import get_default_job_table
+
+    table = get_default_job_table()
+    show_all = bool(args) and args[0] in ("-l", "-a", "--all")
+    jobs = table.all() if show_all else table.running()
+
+    if not jobs:
+        print("  (no background jobs)")
+        return 0
+
+    print(f"  {'ID':>3}  {'PID':>7}  {'STATE':<10}  COMMAND")
+    for j in jobs:
+        marker = ""
+        if j.state.value == "running":
+            marker = "+"     # current
+        elif j.state.value == "exited":
+            marker = "-"
+        print(f"  {j.job_id:>3}  {j.pid:>7}  {j.state.value:<10}  {j.command}")
+    return 0
+
+
+def _builtin_kill(args: List[str]) -> int:
+    """
+    Builtin `kill` — завершить фоновый job.
+
+    Использование:
+        kill <job_id>          → SIGTERM (terminate)
+        kill -9 <job_id>       → SIGKILL (kill)
+        kill -KILL <job_id>
+    """
+    from .shell_jobs import get_default_job_table
+
+    if not args:
+        sys.stderr.write("citadel: kill: expected job_id\n")
+        return 2
+
+    force = False
+    if args[0].startswith("-") and args[0][1:].isdigit():
+        if args[0] in ("-9", "-KILL", "-SIGKILL"):
+            force = True
+            args = args[1:]
+        else:
+            sys.stderr.write(f"citadel: kill: unknown signal {args[0]}\n")
+            return 2
+
+    if not args:
+        sys.stderr.write("citadel: kill: expected job_id\n")
+        return 2
+
+    try:
+        jid = int(args[0])
+    except ValueError:
+        sys.stderr.write(f"citadel: kill: invalid job_id: {args[0]!r}\n")
+        return 2
+
+    table = get_default_job_table()
+    if table.kill(jid, force=force):
+        print(f"  killed job [{jid}]")
+        return 0
+    print(f"  citadel: kill: job [{jid}] not found or not running", file=sys.stderr)
+    return 1
+
+
+def _builtin_wait(args: List[str]) -> int:
+    """
+    Builtin `wait` — дождаться завершения всех (или конкретного) job'ов.
+
+    Использование:
+        wait           → ждать ВСЕ фоновые jobs
+        wait <job_id>  → ждать конкретного
+    """
+    from .shell_jobs import get_default_job_table
+
+    table = get_default_job_table()
+
+    if not args:
+        # Ждём все.
+        jobs = table.running()
+        for j in jobs:
+            table.wait(j.job_id)
+        return 0
+
+    try:
+        jid = int(args[0])
+    except ValueError:
+        sys.stderr.write(f"citadel: wait: invalid job_id: {args[0]!r}\n")
+        return 2
+
+    rc = table.wait(jid)
+    if rc is None:
+        print(f"  citadel: wait: timeout or no job [{jid}]", file=sys.stderr)
+        return 1
+    return rc
+
+
+def _builtin_alias(args: List[str]) -> int:
+    """
+    Builtin `alias` — управление алиасами.
+
+    Поддерживает формы:
+        alias                       → показать все
+        alias list                  → то же самое
+        alias NAME                  → показать конкретный (если есть)
+        alias add NAME BODY         → добавить legacy
+        alias add NAME BODY $@      → добавить расширенный (содержит $@)
+        alias remove NAME           → удалить
+        alias rm NAME               → удалить (псевдоним)
+    """
+    from .shell_alias import get_alias_map, add_alias as _add, remove_alias as _rm
+
+    # Без аргументов / list → список
+    if not args or args[0] in ("list", "-l", "ls"):
+        mp = get_alias_map()
+        if not mp:
+            print("  (aliases empty - add: alias add ll 'ls -la $@')")
+            return 0
+        print("=== CITADEL ALIASES ===")
+        for name in sorted(mp):
+            entry = mp[name]
+            body = entry.body
+            arg_marker = " $@" if "$@" in body or any(
+                f"${i}" in body for i in range(1, 10)
+            ) else ""
+            print(f"  {name:<14} -> {body}{arg_marker}")
+        print()
+        return 0
+
+    # alias NAME → один алиас
+    if len(args) == 1 and args[0] not in ("add", "remove", "rm", "del"):
+        mp = get_alias_map()
+        if args[0] in mp:
+            e = mp[args[0]]
+            print(f"  {args[0]} → {e.body}")
+            return 0
+        sys.stderr.write(f"citadel: alias: {args[0]}: not found\n")
+        return 1
+
+    # alias add NAME BODY...
+    if args[0] in ("add", "set") and len(args) >= 3:
+        name = args[1]
+        body = " ".join(args[2:])
+        try:
+            _add(name, body)
+            print(f"  [+] alias '{name}' -> '{body}'")
+            return 0
+        except Exception as e:  # noqa: BLE001
+            sys.stderr.write(f"citadel: alias add failed: {e}\n")
+            return 1
+
+    # alias remove NAME
+    if args[0] in ("remove", "rm", "del") and len(args) == 2:
+        if _rm(args[1]):
+            print(f"  [-] alias '{args[1]}' removed.")
+            return 0
+        sys.stderr.write(f"citadel: alias: {args[1]}: not found\n")
+        return 1
+
+    print("Использование:")
+    print("  alias                         — список всех")
+    print("  alias NAME                    — показать конкретный")
+    print("  alias add NAME BODY           — добавить")
+    print("  alias remove NAME             — удалить")
+    return 2
 
 
 def _builtin_cd(args: List[str], store: VariableStore) -> int:
@@ -404,23 +602,48 @@ def _builtin_type(args: List[str], store: VariableStore) -> int:
     return 1
 
 
-def _flat_tokens_from_argv(
-    argv: List[str],
-    original_tokens: List[Token],
+def _remerge_after_alias(
+    original_line: str,
+    argv_after_alias: List[str],
 ) -> List[Token]:
     """
-    Восстановить плоский список токенов из argv (после алиаса) +
-    операторов из оригинала. Костыль для merge — полноценный
-    re-merge запланирован на следующую итерацию.
-    """
-    ops = [t for t in original_tokens if t.kind != "word"]
-    out: List[Token] = []
-    if not ops:
-        for a in argv:
-            out.append(Token(raw=a, value=a, kind="word"))
-        return out
+    Корректный re-merge операторов после раскрытия алиаса.
 
-    for a in argv:
-        out.append(Token(raw=a, value=a, kind="word"))
-    out.extend(ops)
-    return out
+    Стратегия: подменить ПЕРВОЕ СЛОВО в исходной строке на раскрытое тело
+    алиаса, оставив все остальные слова и операторы на своих местах.
+    Затем ретокенизировать результат.
+
+    Пример:
+        input:   "g commit -m msg > log.txt"
+        alias g: "git"
+        merged:  "git commit -m msg > log.txt"
+    """
+    # Находим первое слово в строке (без учёта кавычек — нам нужен индекс).
+    stripped = original_line.lstrip()
+    if not stripped:
+        return []
+
+    # Ищем конец первого слова (до первого whitespace).
+    end = 0
+    while end < len(stripped) and not stripped[end].isspace():
+        end += 1
+
+    first_word = stripped[:end]
+    rest = stripped[end:]   # с ведущим пробелом или пусто
+
+    # Цитируем argv[0] если оно содержит спецсимволы.
+    def _quote(s: str) -> str:
+        if not s:
+            return '""'
+        if any(c.isspace() or c in '|<>&;"\\' for c in s):
+            return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        return s
+
+    new_first = " ".join(_quote(a) for a in argv_after_alias)
+    merged = new_first + rest
+
+    result = tokenize(merged)
+    if result.errors:
+        for err in result.errors:
+            sys.stderr.write(f"citadel: {err.message}\n")
+    return result.tokens

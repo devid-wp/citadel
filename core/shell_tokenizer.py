@@ -33,6 +33,8 @@ TokenKind = Literal[
     "redir_merge",     # 2>&1
     "semicolon",       # ;
     "background",      # &
+    "and",             # &&
+    "or",              # ||
 ]
 
 
@@ -159,6 +161,18 @@ def tokenize(line: str) -> TokenizeResult:
                 result.tokens.append(Token(raw=two, value=two, kind="pipe_err"))
                 i += 2
                 continue
+                        # Conditional: && (двухсимвольный) и || (двухсимвольный).
+            # ВАЖНО: проверяем ДО одиночного '&', иначе && распадётся на & &.
+            if two == "&&":
+                flush_word()
+                result.tokens.append(Token(raw=two, value=two, kind="and"))
+                i += 2
+                continue
+            if two == "||":
+                flush_word()
+                result.tokens.append(Token(raw=two, value=two, kind="or"))
+                i += 2
+                continue
             # 3) Односимвольные операторы.
             if ch in ("|", ";", "&"):
                 flush_word()
@@ -280,7 +294,7 @@ def is_redirection(kind: TokenKind) -> bool:
 
 def is_control(kind: TokenKind) -> bool:
     """Какие токены разделяют команды/пайпы."""
-    return kind in ("pipe", "pipe_err", "semicolon", "background")
+    return kind in ("pipe", "pipe_err", "semicolon", "background", "and", "or")
 
 
 def pretty_print_tokens(tokens: List[Token]) -> str:

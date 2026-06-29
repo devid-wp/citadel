@@ -42,13 +42,30 @@ def normalize_alias(raw_name: str, raw_value: AliasValue) -> AliasEntry:
     """
     Превратить любое представление алиаса (строка/dict/AliasEntry) в AliasEntry.
 
-    Это ЕДИНСТВЕННАЯ точка конвертации legacy → v2. Все остальные модули
-    работают с результатом этой функции.
+    Поддерживаемые форматы на диске:
+      - "ls -la"                       — legacy plain string
+      - '{"body": "...", "args": -1}'  — JSON-сериализованный расширенный
     """
     if isinstance(raw_value, AliasEntry):
         return raw_value
 
     if isinstance(raw_value, str):
+        # Попытка распарсить как JSON (расширенный формат).
+        if raw_value.startswith("{") and raw_value.endswith("}"):
+            try:
+                import json as _json
+                parsed = _json.loads(raw_value)
+                if isinstance(parsed, dict):
+                    body = parsed.get("body", "")
+                    args = parsed.get("args", parsed.get("arg_count", -1))
+                    try:
+                        args = int(args)
+                    except (TypeError, ValueError):
+                        args = -1
+                    return AliasEntry(name=raw_name, body=str(body), arg_count=args)
+            except (ValueError, TypeError):
+                # Битый JSON — fallback на plain string.
+                pass
         return AliasEntry(name=raw_name, body=raw_value, arg_count=-1)
 
     if isinstance(raw_value, dict):
@@ -93,18 +110,13 @@ def expand_alias_tokens(
     """
     Развернуть первый токен (если это алиас) с подстановкой позиционных.
 
-    Args:
-        argv: токены после Tokenizer и VariableStore.expand_tokens.
-        alias_map: предзагруженная карта. Если None — get_alias_map().
-        _recursion_guard: защита от циклических алиасов.
-
-    Returns:
-        Развёрнутый список токенов.
-
-    Цепочка `alias a = b; alias b = ls` → `a` → `b` → `ls`.
+    POSIX-семантика (как в bash):
+        - Если в body есть $@ — он разворачивается в user_args.
+        - Если в body есть $1, $2, ... — он разворачивается в конкретный аргумент.
+        - Если $@ НЕТ в body, user_args **дописываются в конец** (trailing args).
+        Это позволяет `alias g=git` + `g commit msg` = `git commit msg`.
     """
     if _recursion_guard > 10:
-        # Слишком глубокая вложенность — скорее всего цикл, возвращаем as-is.
         return argv
 
     if not argv:
@@ -118,39 +130,63 @@ def expand_alias_tokens(
     if entry is None:
         return argv
 
-    # Раскрыть $@, $1..$9 в body. НЕ трогаем $HOME и т.п. — это VariableStore.
     body_tokens = entry.body.split() if entry.body else []
     user_args = argv[1:]
 
     expanded: List[str] = []
+    has_at_ref = False
+    has_pos_ref = False
+
     for tok in body_tokens:
         if tok == "$@":
             expanded.extend(user_args)
+            has_at_ref = True
         elif tok.startswith("$") and tok[1:].isdigit():
             idx = int(tok[1:]) - 1
             if 0 <= idx < len(user_args):
                 expanded.append(user_args[idx])
-            # Иначе — пустой токен, отбрасываем (как в bash).
+            has_pos_ref = True
         else:
             expanded.append(tok)
 
-    # Рекурсия: первый токен результата тоже может быть алиасом.
+    # POSIX trailing args: если ни $@, ни позиционные не использованы,
+    # дописываем user_args в конец.
+    if not has_at_ref and not has_pos_ref and user_args:
+        expanded.extend(user_args)
+
     return expand_alias_tokens(
-        expanded,
-        alias_map,
-        _recursion_guard=_recursion_guard + 1,
+        expanded, alias_map, _recursion_guard=_recursion_guard + 1,
     )
 
 
 def add_alias(name: str, body: str, *, arg_count: int = -1) -> None:
-    """Добавить алиас в user_config (расширенный формат)."""
+    """Добавить алиас в user_config.
+
+    user_config.add_alias() принимает str -> пишем JSON-сериализованный dict
+    для расширенных алиасов (с $@, $1..$9) и plain string для legacy.
+
+    Формат на диске:
+        legacy:   "ll" → "ls -la"
+        expanded: "ll" → '{"body": "ls -la $@", "args": -1}'
+    """
+    if arg_count == -1 and "$@" not in body and not any(
+        body.startswith(f"${i} ") or f" ${i} " in f" {body} "
+        for i in range(1, 10)
+    ):
+        # Простой legacy-формат — пишем как строку, без JSON-обёртки.
+        storage: str = body
+    else:
+        # Расширенный — JSON для последующего разбора в normalize_alias.
+        import json as _json
+        storage = _json.dumps({"body": body, "args": arg_count}, ensure_ascii=False)
+
     try:
         from system.user_config import add_alias  # type: ignore
-        add_alias(name, {"body": body, "args": arg_count})
+        add_alias(name, storage)
     except ImportError:
-        # Fallback: просто кладём в os.environ как CITADEL_ALIAS_<NAME>
+        # Fallback: env-переменная.
         import os
-        os.environ[f"CITADEL_ALIAS_{name.upper()}"] = body
+        os.environ[f"CITADEL_ALIAS_{name.upper()}"] = storage
 
 
 def remove_alias(name: str) -> bool:

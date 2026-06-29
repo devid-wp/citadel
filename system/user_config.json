@@ -2,17 +2,7 @@
     "user_name": "User",
     "theme_color": "PURPLE",
     "text_delay": 0.002,
-    "aliases": {
-        "ll": "ls",
-        "la": "ls",
-        "c": "clear",
-        "h": "history",
-        "q": "exit",
-        "NAME": {
-            "body": "citadel",
-            "args": -1
-        }
-    },
+    "aliases": {},
     "last_location": {
         "ip": "213.110.135.224",
         "city": "Kyiv",
@@ -24,7 +14,7 @@
         "timezone": "Europe/Kyiv",
         "org": "SUNNET LLC",
         "source": "ipapi.co",
-        "fetched_at": 1782727662
+        "fetched_at": 1782745703
     },
     "favorite_city": null
 }

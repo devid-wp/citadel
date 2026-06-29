@@ -33,6 +33,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from .shell_tokenizer import Token, is_redirection, is_control
+from .shell_jobs import (
+    BackgroundJob, JobTable, run_stages_in_background,
+    get_default_job_table,
+)
 
 
 # ============================================================================
@@ -369,15 +373,80 @@ def _stream_lines(proc: subprocess.Popen, on_line: callable) -> None:
 # Высокоуровневый API: разбить строку по `;` и выполнить каждую команду
 # ============================================================================
 
+def _split_by(
+    tokens: List[Token],
+    kinds: tuple,
+) -> List[List[Token]]:
+    """Разбить плоский список токенов на сегменты по операторам kinds."""
+    segments: List[List[Token]] = [[]]
+    for tok in tokens:
+        if tok.kind in kinds:
+            if segments[-1]:
+                segments.append([])
+        else:
+            segments[-1].append(tok)
+    return [s for s in segments if s]
+
+
+def _last_exit_of_segment(
+    segment: List[Token],
+    *,
+    env: Optional[dict],
+    cwd: Optional[str],
+    on_line: Optional[callable],
+    raw_command: str = "",
+) -> int:
+    """Выполнить один сегмент (цепочку пайпов) и вернуть exit code.
+
+    Если в сегменте есть stage с background=True — запускаем через JobTable
+    и сразу возвращаем 0 (фоновый job не должен блокировать).
+    """
+    if not segment:
+        return 0
+    try:
+        stages = parse_pipeline(segment)
+    except PipelineError as e:
+        sys.stderr.write(f"citadel: parse error: {e}\n")
+        return 2
+
+    # Проверка: есть ли хотя бы один background stage.
+    has_background = any(s.background for s in stages)
+
+    if has_background:
+        # Запускаем через JobTable.
+        job_table = get_default_job_table()
+        job = run_stages_in_background(
+            job_table, stages, raw_command or "background job",
+            cwd=cwd, env=env, on_line=on_line,
+        )
+        # Сообщаем пользователю.
+        print(
+            f"  [{job.job_id}] {job.pid}  {raw_command or '(background)'}",
+            file=sys.stderr,
+        )
+        return 0
+
+    try:
+        return execute_pipeline(stages, env=env, cwd=cwd, on_line=on_line)
+    except PipelineError as e:
+        sys.stderr.write(f"citadel: {e}\n")
+        return 127
+
+
 def execute_commandline(
     tokens: List[Token],
     *,
     env: Optional[dict] = None,
     cwd: Optional[str] = None,
     on_line: Optional[callable] = None,
+    raw_command: str = "",
 ) -> int:
     """
-    Выполнить список токенов. `;` трактуется как разделитель команд.
+    Выполнить список токенов с учётом ;, &&, ||.
+
+    Приоритет операторов (от высшего к низшему):
+        1. && и ||   — short-circuit внутри одной логической цепочки
+        2. ;         — разделитель независимых команд (всегда выполняются)
 
     Returns:
         Exit code последней выполненной команды.
@@ -385,33 +454,85 @@ def execute_commandline(
     if not tokens:
         return 0
 
-    # Разбить по `;` на сегменты.
-    segments: List[List[Token]] = [[]]
-    for tok in tokens:
-        if tok.kind == "semicolon":
-            if segments[-1]:
-                segments.append([])
-        else:
-            segments[-1].append(tok)
+    # ----- Сборка плоского списка "подкоманда + оператор" -----
+    # Разбиваем по ; на независимые команды.
+    # Затем внутри каждой команды разделяем по && и ||.
+    # Идём слева направо, применяя short-circuit.
+    raw_segments = _split_by(tokens, ("semicolon",))
 
     last_exit = 0
-    for seg in segments:
-        if not seg:
-            continue
-        try:
-            stages = parse_pipeline(seg)
-        except PipelineError as e:
-            sys.stderr.write(f"citadel: parse error: {e}\n")
-            last_exit = 2
+    for raw_seg in raw_segments:
+        if not raw_seg:
             continue
 
-        try:
-            last_exit = execute_pipeline(
-                stages, env=env, cwd=cwd, on_line=on_line,
-            )
-        except PipelineError as e:
-            sys.stderr.write(f"citadel: {e}\n")
-            last_exit = 127
+        # Внутри raw_seg выделяем последовательность (cmd, op, cmd, op, cmd).
+        # Пары собираем: cond_segments — список [(cmd_tokens, op_to_next), ...].
+        cond_segments = _split_by(raw_seg, ("and", "or"))
+        if not cond_segments:
             continue
+
+        # Строим явный список с операторами между сегментами.
+        items: List = []  # [(tokens, op_to_next)]  op_to_next = "and" | "or" | None
+        op_iter = iter(_collect_operators_between(raw_seg, ("and", "or")))
+        for cmd_tokens in cond_segments:
+            op = next(op_iter, None)
+            items.append((cmd_tokens, op))
+
+        # Выполняем с правильной POSIX-семантикой и приоритетом && над ||.
+        last_exit = _parse_conditional_chain(
+            items, env, cwd, on_line, raw_command=raw_command,
+        )
+
+    return last_exit
+
+
+def _collect_operators_between(
+    tokens: List[Token],
+    kinds: tuple,
+) -> List[str]:
+    """Вернуть список операторов kinds, которые встречаются между word-токенами."""
+    out: List[str] = []
+    for tok in tokens:
+        if tok.kind in kinds:
+            out.append(tok.kind)
+    return out
+
+
+def _parse_conditional_chain(
+    items: List,
+    env: Optional[dict],
+    cwd: Optional[str],
+    on_line: Optional[callable],
+    raw_command: str = "",
+) -> int:
+    """
+    Вычислить цепочку [(cmd_tokens, op)] с POSIX-семантикой коротких замыканий.
+
+    POSIX-правила (ассоциативность слева, && и || равноправны):
+        A && B   → выполни A; если rc=0, выполни B; иначе rc=rc_A, B skip
+        A || B   → выполни A; если rc≠0, выполни B; иначе rc=rc_A, B skip
+
+    Для смешанных: `A && B || C` = `((A && B) || C)` (одинаковый приоритет).
+    Это эквивалентно left-to-right state-machine.
+    """
+    last_exit = 0
+    skip_next = False       # skip следующий cmd?
+
+    for cmd_tokens, op in items:
+        if skip_next:
+            # Правый операнд skip'нут. Выходим из skip-режима,
+            # но НЕ выполняем cmd — POSIX: exit остаётся от left.
+            skip_next = False
+            continue
+
+        last_exit = _last_exit_of_segment(
+            cmd_tokens, env=env, cwd=cwd, on_line=on_line,
+            raw_command=raw_command,
+        )
+
+        if op == "and" and last_exit != 0:
+            skip_next = True   # skip правый операнд
+        elif op == "or" and last_exit == 0:
+            skip_next = True   # skip правый операнд
 
     return last_exit
