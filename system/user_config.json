@@ -7,7 +7,11 @@
         "la": "ls",
         "c": "clear",
         "h": "history",
-        "q": "exit"
+        "q": "exit",
+        "NAME": {
+            "body": "citadel",
+            "args": -1
+        }
     },
     "last_location": {
         "ip": "213.110.135.224",
@@ -20,7 +24,7 @@
         "timezone": "Europe/Kyiv",
         "org": "SUNNET LLC",
         "source": "ipapi.co",
-        "fetched_at": 1782567687
+        "fetched_at": 1782727662
     },
     "favorite_city": null
 }
