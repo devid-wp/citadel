@@ -276,12 +276,22 @@ def execute_pipeline(
 
             # ----- Запуск -----
             try:
+                # Гарантируем unbuffered вывод для Python subprocess'ов
+                # чтобы данные не терялись когда родитель уже закрыл pipe.
+                proc_env = env
+                if env is not None and stage.argv and stage.argv[0]:
+                    head = stage.argv[0].lower()
+                    if (head.endswith("python") or head.endswith("python.exe")
+                            or "/python" in head or "\\python" in head
+                            or "py" == os.path.basename(head)):
+                        proc_env = dict(env)
+                        proc_env.setdefault("PYTHONUNBUFFERED", "1")
                 proc = subprocess.Popen(
                     stage.argv,
                     stdin=stdin_fd,
                     stdout=stdout_fd,
                     stderr=stderr_fd,
-                    env=env,
+                    env=proc_env,
                     cwd=cwd,
                     text=False,            # bytes для универсальности; on_line сам декодит
                 )

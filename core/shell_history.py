@@ -226,6 +226,27 @@ class HistoryManager:
         with self._lock:
             self._ring.clear()
 
+    def flush(self) -> bool:
+        """
+        Принудительный fsync на диск.
+
+        В обычной работе HistoryManager пишет на диск синхронно после
+        каждого finish() (см. _append_to_disk). Этот метод полезен только
+        для graceful shutdown, когда хочется гарантировать, что ОС
+        действительно сбросила буфер на диск (на случай kill -9 сразу
+        после close).
+
+        Возвращает True если операция выполнена.
+        """
+        if not self._path:
+            return False
+        try:
+            with open(self._path, "r", encoding="utf-8") as f:
+                os.fsync(f.fileno())
+            return True
+        except OSError:
+            return False
+
     def truncate_disk(self) -> bool:
         """Полностью стереть файл истории на диске."""
         if not self._path:
@@ -249,3 +270,12 @@ def get_default_history() -> HistoryManager:
     if _default_history is None:
         _default_history = HistoryManager()
     return _default_history
+
+
+def reset_default_history() -> None:
+    """
+    Сброс singleton истории (для тестов и recovery).
+    В прод-коде НЕ использовать — теряет состояние in-memory ring buffer.
+    """
+    global _default_history
+    _default_history = None
