@@ -51,6 +51,7 @@ from .shell_pipeline import (
     parse_pipeline, execute_pipeline, execute_commandline,
 )
 from .shell_glob import expand_tokens as expand_glob_tokens
+from .shell_subst import safe_substitute
 
 
 # Известные команды Citadel — для Tab-дополнения.
@@ -61,6 +62,8 @@ BUILTIN_COMMANDS = [
     "alias", "lock",
     # Новое в v3.0:
     "set", "unset", "export", "vars", "env", "type",
+    # Job control (Фаза 0.5):
+    "jobs", "kill", "wait", "fg",
 ]
 
 # Слова для подсказки внутри интерактивных приложений (файловый браузер и т.д.)
@@ -226,6 +229,25 @@ def run_command(
     if not line:
         return 0
 
+    # ----- Command substitution $(...) и `...` (до лексера) -----
+    # Применяем ТОЛЬКО если в строке нет '=' как assignment.
+    if "$(" in line or "`" in line:
+        is_assignment = (
+            "=" in line
+            and not line.startswith(("==", ">", "<"))
+            and " " not in line.split("=", 1)[0]
+            and "|" not in line
+            and ">" not in line and "<" not in line
+            and ";" not in line
+            and "&" not in line
+        )
+        if not is_assignment:
+            try:
+                var_store_pre = store or get_default_store()
+                line = safe_substitute(line, env=var_store_pre.as_env())
+            except Exception:
+                pass
+
     # ----- Variable assignment: NAME=value (без операторов внутри) -----
     if "=" in line and not line.startswith(("==", ">", "<")):
         first_tok, _, rest = line.partition("=")
@@ -355,6 +377,8 @@ def run_command(
         return _builtin_kill(argv[1:])
     if argv[0] == "wait":
         return _builtin_wait(argv[1:])
+    if argv[0] == "fg":
+        return _builtin_fg(argv[1:])
 
     # ----- 4. Pipeline execution -----
     pending = (history or get_default_history()).begin(line)
@@ -485,6 +509,50 @@ def _builtin_wait(args: List[str]) -> int:
     if rc is None:
         print(f"  citadel: wait: timeout or no job [{jid}]", file=sys.stderr)
         return 1
+    return rc
+
+
+def _builtin_fg(args: List[str]) -> int:
+    """
+    Builtin `fg` — вытащить фоновый job в foreground и дождаться его.
+
+    Использование:
+        fg             → взять самый свежий running job
+        fg <job_id>    → взять конкретный
+
+    Возвращает exit_code job'а.
+    """
+    from .shell_jobs import get_default_job_table
+
+    table = get_default_job_table()
+
+    if not args:
+        job = table.get_most_recent()
+        if job is None:
+            sys.stderr.write("citadel: fg: no current job\n")
+            return 1
+    else:
+        try:
+            jid = int(args[0])
+        except ValueError:
+            sys.stderr.write(f"citadel: fg: invalid job_id: {args[0]!r}\n")
+            return 2
+        job = table.get(jid)
+        if job is None:
+            sys.stderr.write(f"citadel: fg: job [{jid}] not found\n")
+            return 1
+
+    if job.state.value != "running":
+        # Job уже завершён — просто печатаем его exit code.
+        print(f"  [fg] job [{job.job_id}] already {job.state.value} (rc={job.exit_code})")
+        return job.exit_code if job.exit_code is not None else 0
+
+    print(f"  [fg] job [{job.job_id}] {job.command} — waiting...")
+    rc = table.wait(job.job_id)
+    if rc is None:
+        sys.stderr.write(f"citadel: fg: job [{job.job_id}] did not finish\n")
+        return 1
+    print(f"  [fg] job [{job.job_id}] done (rc={rc})")
     return rc
 
 

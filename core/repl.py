@@ -46,6 +46,7 @@ except ImportError:
 import config
 from .shell_history import HistoryManager, get_default_history
 from .theme_state import get_theme_state
+from .shell_signals import get_signal_context
 
 
 # ============================================================================
@@ -326,6 +327,14 @@ def run_repl(
     #    Делаем это здесь, чтобы run_command() знал про help/fetch/clear/exit.
     _register_default_builtins()
 
+    # 0a. Установка signal handlers (Ctrl-C → foreground proc; SIGTERM → shutdown).
+    #     Делаем ДО readline, чтобы хендлеры были активны с момента входа в loop.
+    try:
+        sig_ctx = get_signal_context()
+        sig_ctx.install_handlers()
+    except Exception:
+        sig_ctx = None
+
     # 1. Инициализация истории
     bridge = HistoryBridge()
 
@@ -430,6 +439,18 @@ def run_repl(
         # но явный close() гарантирует flush даже при KeyboardInterrupt.
         try:
             atexit.unregister(readline.write_history_file)  # noqa: F821
+        except Exception:
+            pass
+
+        # Cleanup: прибить все ещё-running фоновые jobs, чтобы они не
+        # остались зомби-процессами после выхода из REPL.
+        try:
+            from .shell_jobs import get_default_job_table
+            table = get_default_job_table()
+            n = table.kill_all_running(force=True)
+            if n:
+                print(f"  [ Citadel: terminated {n} background job(s) ]",
+                      file=sys.stderr)
         except Exception:
             pass
 

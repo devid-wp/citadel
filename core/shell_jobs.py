@@ -167,6 +167,61 @@ class JobTable:
         job.refresh_state()
         return job.exit_code
 
+    def wait_all(self, timeout: Optional[float] = None) -> List[int]:
+        """
+        Дождаться завершения всех running jobs.
+
+        Args:
+            timeout: макс. время ожидания на КАЖДЫЙ job (None = ждать до победного).
+
+        Returns:
+            Список exit_code'ов в порядке завершения.
+        """
+        codes: List[int] = []
+        for job in self.running():
+            rc = self.wait(job.job_id, timeout=timeout)
+            if rc is not None:
+                codes.append(rc)
+        return codes
+
+    def kill_all_running(self, *, force: bool = False) -> int:
+        """
+        Принудительно завершить все running jobs (используется при exit/Ctrl-C).
+
+        Args:
+            force: True = SIGKILL, False = SIGTERM.
+
+        Returns:
+            Количество прибитых jobs.
+        """
+        killed = 0
+        with self._lock:
+            for job in list(self._jobs.values()):
+                if job.state != JobState.RUNNING:
+                    continue
+                for p in job.processes:
+                    try:
+                        if force:
+                            p.kill()
+                        else:
+                            p.terminate()
+                    except OSError:
+                        pass
+                job.state = JobState.KILLED
+                job.ended_at = time.time()
+                killed += 1
+        return killed
+
+    def get_most_recent(self) -> Optional[BackgroundJob]:
+        """Вернуть самый свежий running job (для `fg`). None если нет."""
+        with self._lock:
+            self._refresh_states()
+            running = [j for j in self._jobs.values() if j.state == JobState.RUNNING]
+        if not running:
+            return None
+        running.sort(key=lambda j: j.job_id, reverse=True)
+        return running[0]
+
 
 # ----- Запуск фонового pipeline -----
 
