@@ -59,6 +59,212 @@ HISTORY_MAXLEN = 500  # синхронизировано с HistoryManager defau
 
 EXIT_COMMANDS = frozenset({"exit", "q", "quit", ":q", ":x"})
 
+# ----- Banner (Phase 1.8) -----------------------------------------------------
+# Логотип Citadel: ASCII-арт из logo.txt + 3 последние команды из истории.
+# При TTY-выводе — с ANSI-цветами; в не-интерактивном режиме — сухая версия.
+
+_LOGO_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "logo.txt",
+)
+
+
+def _read_logo_lines() -> list[str]:
+    """Прочитать logo.txt. Возвращает пустой список если файл не найден."""
+    try:
+        with open(_LOGO_PATH, "r", encoding="utf-8") as f:
+            return [line.rstrip("\n") for line in f]
+    except OSError:
+        return []
+
+
+def _format_recent_commands(
+    history: Optional[HistoryManager] = None,
+    n: int = 3,
+    *,
+    width: int = 44,
+    muted: str = "",
+    accent: str = "",
+    reset: str = "",
+) -> list[str]:
+    """
+    Сформатировать последние N команд из истории в строки для banner'а.
+
+    Каждая строка:  "  │  <N>. <cmd усечённый до width>              │"
+    Если история пуста — показываем подсказку.
+
+    Args:
+        history: HistoryManager (None = default singleton).
+        n: сколько последних команд показать.
+        width: ширина поля под команду (в символах).
+        muted/accent/reset: ANSI-коды для подсветки.
+    """
+    if history is None:
+        try:
+            history = get_default_history()
+        except Exception:
+            history = None
+
+    if history is None:
+        return [f"  │{' ' * (width + 2)}│"]
+
+    try:
+        recent = history.recent(n) if hasattr(history, "recent") else []
+    except Exception:
+        recent = []
+
+    if not recent:
+        # Пустая история — намекнём что можно набрать help.
+        return [
+            f"  │{muted}  (no commands yet — try 'help'){reset}"
+            f"{' ' * max(0, width - 30)}│",
+        ]
+
+    out: list[str] = []
+    for idx, entry in enumerate(recent, start=1):
+        # recent() отдаёт новейшие первые; для banner нам нужно наоборот —
+        # последняя команда снизу, чтобы взгляд скользил сверху вниз.
+        cmd = entry.cmd.strip()
+        # Усечение: оставляем хвост команды если слишком длинная.
+        max_cmd = width - 6  # "<N>. " + хвост
+        if len(cmd) > max_cmd:
+            cmd = "..." + cmd[-(max_cmd - 3):]
+        prefix = f"{idx}. "
+        # ANSI-выделение номера (тонкий акцент).
+        number = f"{accent}{prefix}{reset}"
+        inner = f"  {number}{cmd}"
+        # Добиваем пробелами до правой границы.
+        # 2 пробела слева + 1 справа (внутри │ ... │).
+        # Ширина рамки = width + 2 пробела по бокам + 2 символа '│'.
+        pad = max(1, width - 2 - len(inner) + len(prefix) + len(reset) + len(accent))
+        # Упрощённо: считаем видимую длину без ANSI.
+        visible = 2 + len(prefix) + len(cmd)
+        pad = max(1, width + 2 - visible)
+        out.append(f"  │{inner}{' ' * pad}│")
+    return out
+
+
+def build_banner(
+    *,
+    palette=None,
+    history: Optional[HistoryManager] = None,
+    n_recent: int = 3,
+    is_tty: bool = True,
+    use_color: bool = True,
+) -> str:
+    """
+    Собрать полный banner для вывода при старте REPL.
+
+    Структура:
+        ┌──────────────────────────────────────────────┐
+        │   <логотип Citadel из logo.txt, если есть>   │
+        │  CITADEL OS · Modular Core v3.0              │
+        │                                              │
+        │  Recent commands:                            │
+        │    1. ls -la                                 │
+        │    2. fetch weather                          │
+        │    3. notes add "todo: ship phase 0.8"       │
+        │                                              │
+        │  Type 'help' for commands. Ctrl-D / 'exit'   │
+        │  to quit.                                    │
+        └──────────────────────────────────────────────┘
+
+    Args:
+        palette: ThemePalette (None = взять из theme_state).
+        history: HistoryManager (None = singleton).
+        n_recent: сколько последних команд показать.
+        is_tty: True если REPL стартует в TTY.
+        use_color: True если разрешены ANSI-коды (например False в pipe).
+    """
+    if palette is None:
+        try:
+            palette = get_theme_state().current_palette
+        except Exception:
+            palette = None
+
+    # Цвета с fallback на config.COLORS.
+    primary = (palette.primary if palette else config.COLORS.get("PURPLE", "")) if use_color else ""
+    accent = (palette.accent if palette else config.COLORS.get("CYAN", "")) if use_color else ""
+    muted = (palette.muted if palette else config.COLORS.get("GRAY", "")) if use_color else ""
+    reset = (palette.reset if palette else config.COLORS.get("RESET", "")) if use_color else ""
+
+    # Ширина баннера — 46 символов внутри (подогнано под logo.txt).
+    W = 46
+
+    # Шапка.
+    top = f"{primary}  ┌{'─' * W}┐{reset}"
+    sep = f"{primary}  │{' ' * W}│{reset}"
+    bot = f"{primary}  └{'─' * W}┘{reset}"
+
+    lines: list[str] = []
+    lines.append(top)
+
+    # Логотип: рисуем в рамке. Каждая строка лого обрезается/добивается.
+    logo_lines = _read_logo_lines()
+    if logo_lines:
+        # logo.txt: первая строка пустая, потом ASCII, потом две строки
+        # с явной надписью CITADEL OS. Возьмём только ASCII-арт (строки
+        # 1..7 по индексу 0..6) — блок CITADEL OS нарисуем сами.
+        art = [ln for ln in logo_lines[1:8] if ln.strip()]
+        for art_line in art:
+            # Срезаем до 46 видимых символов, дополняем пробелами.
+            visible = art_line[:W]
+            pad = W - len(visible)
+            lines.append(
+                f"{primary}  │{reset}{accent}{visible}{reset}{' ' * pad}{primary}│{reset}"
+            )
+    else:
+        # Нет logo.txt — fallback на текстовую шапку.
+        title = f"  CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+        pad = W - len(title)
+        lines.append(
+            f"{primary}  │{reset}{accent}{title}{reset}{' ' * pad}{primary}│{reset}"
+        )
+
+    lines.append(sep)
+
+    # Подпись версии + строка-разделитель.
+    ver = f"CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+    pad = W - len(ver)
+    lines.append(
+        f"{primary}  │{reset}  {accent}{ver}{reset}{' ' * pad}{primary}│{reset}"
+    )
+    lines.append(sep)
+
+    # Recent commands header.
+    header = f"{muted}Recent commands:{reset}"
+    pad = W - 2 - len("Recent commands:")
+    lines.append(
+        f"{primary}  │{reset}  {header}{' ' * pad}{primary}│{reset}"
+    )
+
+    # 3 последние команды.
+    for rline in _format_recent_commands(
+        history=history, n=n_recent, width=W - 2, muted=muted, accent=accent, reset=reset,
+    ):
+        lines.append(f"{primary}{rline}{reset}")
+
+    lines.append(sep)
+
+    # Подсказка про help / exit.
+    hint1 = f"{muted}Type 'help' for commands. Ctrl-D / 'exit' to quit.{reset}"
+    hint2 = f"{muted}Tip: arrow keys for history, Tab for completion.{reset}"
+    pad1 = W - 2 - len("Type 'help' for commands. Ctrl-D / 'exit' to quit.")
+    pad2 = W - 2 - len("Tip: arrow keys for history, Tab for completion.")
+    lines.append(
+        f"{primary}  │{reset}  {hint1}{' ' * pad1}{primary}│{reset}"
+    )
+    lines.append(
+        f"{primary}  │{reset}  {hint2}{' ' * pad2}{primary}│{reset}"
+    )
+    lines.append(bot)
+
+    return "\n".join(lines)
+
+
+# Старая BANNER-константа оставлена для обратной совместимости (используется
+# в run_repl() при is_tty=False, где логотип не нужен). В интерактивном
+# режиме теперь вызывается build_banner().
 BANNER = (
     f"{config.COLORS.get('PURPLE', '')}"
     f"  ┌──────────────────────────────────────────────┐\n"
@@ -379,15 +585,31 @@ def run_repl(
     except Exception:
         pass
 
-    # 4. Banner
-    if banner and is_tty:
+    # 4. Banner (Phase 1.8: логотип + 3 последние команды из истории).
+    if banner:
         try:
-            print(BANNER)
+            if is_tty:
+                palette_obj = None
+                try:
+                    palette_obj = theme_state.current_palette if theme_state else None
+                except Exception:
+                    palette_obj = None
+                banner_text = build_banner(
+                    palette=palette_obj,
+                    history=bridge.history,
+                    n_recent=3,
+                    is_tty=is_tty,
+                    use_color=True,
+                )
+                print(banner_text)
+            else:
+                # Non-TTY: сухой однострочный баннер без ANSI.
+                print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
         except UnicodeEncodeError:
-            print("  Citadel Shell v" + config.VERSION)
-    elif banner:
-        # При не-интерактивном запуске печатаем «сухой» banner без ANSI
-        print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+        except Exception:
+            # Любой сбой при построении баннера — фоллбек на простой текст.
+            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
 
     # 5. Loop
     _input = raw_input if raw_input is not None else input
