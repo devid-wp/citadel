@@ -88,6 +88,11 @@ _OPERATOR_TABLE = {
     "&": "background",
 }
 
+# Символы, которые можно экранировать через \\ в NORMAL-режиме.
+# Всё остальное после \\ остаётся литералом (\\X -> \\X), чтобы
+# не ломать Windows-пути вроде C:\\Users\\file.txt.
+_ESCAPE_CHARS = frozenset('"\'$`\\&|<>;()# \n\t')
+
 
 def tokenize(line: str) -> TokenizeResult:
     """
@@ -198,8 +203,17 @@ def tokenize(line: str) -> TokenizeResult:
             continue
 
         # --- Escape: \\ в NORMAL ---
+        # POSIX-семантика: \\X — escape ТОЛЬКО если X — спец-символ.
+        # Для не-спец X (например, буквы или \\) — бэкслэш остаётся литералом.
+        # Это критично для Windows-путей вида C:\\Users\\file.txt.
         if state == _State.NORMAL and ch == "\\":
-            state = _State.ESCAPE
+            if i + 1 < n and line[i + 1] in _ESCAPE_CHARS:
+                state = _State.ESCAPE
+                i += 1
+                continue
+            # Не escape — литеральный бэкслэш.
+            buf.append("\\")
+            raw_buf.append("\\")
             i += 1
             continue
 
@@ -295,6 +309,104 @@ def is_redirection(kind: TokenKind) -> bool:
 def is_control(kind: TokenKind) -> bool:
     """Какие токены разделяют команды/пайпы."""
     return kind in ("pipe", "pipe_err", "semicolon", "background", "and", "or")
+
+
+# ----------------------------------------------------------------------------
+# Multiline-детекторы
+# ----------------------------------------------------------------------------
+# Эти две функции нужны REPL'у для определения «надо ли продолжать ввод».
+# Считаем НЕ по сырой строке, а по токенам: так мы корректно игнорируем
+# скобки внутри кавычек и за экранированным backslash.
+
+_OPEN_BRACKETS = frozenset("([{")
+_CLOSE_BRACKETS = frozenset(")]}")
+_BRACKET_PAIRS = {")": "(", "]": "[", "}": "{"}
+
+
+def bracket_balance(tokens: List[Token]) -> int:
+    """
+    Подсчитать баланс открывающих скобок `( [ {` в списке токенов.
+
+    Возвращает положительное число, если скобок больше открыто, чем закрыто
+    (т.е. выражение ещё не завершено). Ноль — сбалансировано.
+    Отрицательное — закрывающих больше (синтаксическая ошибка, но в REPL
+    мы всё равно даём ввод завершить, чтобы пользователь увидел ошибку
+    на стадии исполнения).
+
+    Скобки внутри '...' и "..." игнорируются (там они литералы).
+    Скобки внутри '...' и "..." не считаются (это литералы).
+    """
+    depth = 0
+    for tok in tokens:
+        if tok.has_quotes:
+            # Внутри кавычек скобки — литералы.
+            continue
+        for ch in tok.raw:
+            if ch in _OPEN_BRACKETS:
+                depth += 1
+            elif ch in _CLOSE_BRACKETS:
+                # Закрытие без открытия — depth не уходит ниже нуля,
+                # это «защита от перекрёстного» учёта.
+                if depth > 0:
+                    depth -= 1
+                # Если depth == 0 и встретили ')' — оставляем depth=0
+                # (не отрицательным) — иначе приглашение никогда не погаснет.
+    return depth
+
+
+def line_continues(line: str) -> bool:
+    """
+    Определить, требует ли строка продолжения:
+        - заканчивается на один backslash (\\)  → классический line-continuation
+        - содержит незакрытую кавычку            → многострочный литерал
+        - имеет незакрытые скобки ( [ {          → выражение не завершено
+
+    Используется REPL'ом: при True — копим в буфер и переходим на
+    prompt-продолжение. На True из обоих источников — REPL решает
+    по приоритету: backslash > кавычка > скобки.
+    """
+    if not line:
+        return False
+    # 1) Backslash-continuation: ровно один `\` в самом конце строки.
+    if line.endswith("\\") and not line.endswith("\\\\"):
+        return True
+    # 2) Незакрытая кавычка / escape: tokenize() поймает это в result.errors.
+    try:
+        result = tokenize(line)
+    except Exception:
+        return False
+    for err in result.errors:
+        msg = (err.message or "").lower()
+        if "unterminated" in msg or "trailing backslash" in msg:
+            return True
+    # 3) Скобки: считаем по токенам, чтобы не ловить литералы в кавычках.
+    if bracket_balance(result.tokens) > 0:
+        return True
+    return False
+
+
+def continuation_reason(line: str) -> str:
+    """
+    Человекочитаемая причина, почему строка не завершена.
+    Используется в prompt-продолжении (ANSI-цвет + подсказка).
+    """
+    if not line:
+        return ""
+    if line.endswith("\\") and not line.endswith("\\\\"):
+        return "backslash"
+    try:
+        result = tokenize(line)
+    except Exception:
+        return ""
+    for err in result.errors:
+        msg = (err.message or "").lower()
+        if "unterminated" in msg:
+            return "quote"
+        if "trailing backslash" in msg:
+            return "backslash"
+    if bracket_balance(result.tokens) > 0:
+        return "brackets"
+    return ""
 
 
 def pretty_print_tokens(tokens: List[Token]) -> str:

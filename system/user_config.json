@@ -2,7 +2,10 @@
     "user_name": "User",
     "theme_color": "PURPLE",
     "text_delay": 0.002,
-    "aliases": {},
+    "aliases": {
+        "mygrep": "grep a",
+        "smoke_test1": "{\"body\": \"echo smoke-ok $@\", \"args\": -1}"
+    },
     "last_location": {
         "ip": "213.110.135.224",
         "city": "Kyiv",

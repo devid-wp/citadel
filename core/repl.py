@@ -45,6 +45,7 @@ except ImportError:
 
 import config
 from .shell_history import HistoryManager, get_default_history
+from .shell_tokenizer import line_continues, continuation_reason
 from .theme_state import get_theme_state
 from .shell_signals import get_signal_context
 
@@ -78,6 +79,8 @@ def build_prompt(
     cwd: Optional[str] = None,
     user_name: Optional[str] = None,
     version: Optional[str] = None,
+    continuation: bool = False,
+    reason: str = "",
 ) -> str:
     """
     Собрать prompt-строку под текущую тему.
@@ -87,6 +90,13 @@ def build_prompt(
 
     Цвет primary берётся из Palette (привязан к времени суток).
     Без ANSI-кодов получается читаемый fallback для не-терминального вывода.
+
+    Args:
+        continuation: True если REPL сейчас в multiline-режиме
+                      (незакрытая кавычка / скобка / \\ на конце строки).
+                      В этом случае возвращается короткий prompt «... ».
+        reason: «quote» / «brackets» / «backslash» — для тонкой подсветки
+                (например, в multiline-режиме меняем цвет на красный).
     """
     if palette is None:
         try:
@@ -98,11 +108,17 @@ def build_prompt(
     accent = palette.accent if palette else config.COLORS.get("CYAN", "")
     muted = palette.muted if palette else config.COLORS.get("GRAY", "")
     reset = palette.reset if palette else config.COLORS.get("RESET", "")
+    red = config.COLORS.get("RED", "\033[31m")
+
+    if continuation:
+        # Multiline-режим: минималистичный prompt. Красный если что-то
+        # синтаксически сломано (quote/backslash), обычный акцент для скобок.
+        marker_color = red if reason in ("quote", "backslash") else accent
+        return f"{marker_color}... {reset}"
 
     user = user_name or getattr(config, "USER_NAME", "user")
     ver = version or getattr(config, "VERSION", "3.0")
     cwd = cwd or os.getcwd()
-    # basename для короткого вида; full path опционален через THEME.
     base = os.path.basename(cwd) or cwd
     sep = f"{accent}@{reset}"
 
@@ -339,14 +355,15 @@ def run_repl(
     bridge = HistoryBridge()
 
     # 2. Tab-completion (если есть readline и пользователь не запретил)
-    completer = None
+    #    completer_ref хранится в замыкании — нужен для hot-reload алиасов (1.6).
+    completer_ref = {"obj": None}
     if setup_completer:
         try:
             from .shell_utils import install_completer
-            completer = install_completer()
+            completer_ref["obj"] = install_completer()
         except Exception:
-            completer = None
-    bridge.setup_readline(completer=completer)
+            completer_ref["obj"] = None
+    bridge.setup_readline(completer=completer_ref["obj"])
 
     # 3. Подписка на смену темы (модули могут перерисовывать prompt)
     theme_state = None
@@ -375,18 +392,26 @@ def run_repl(
     # 5. Loop
     _input = raw_input if raw_input is not None else input
     exit_code = 0
+    # Multiline-буфер (1.5 + 1.7). Копим строки, пока line_continues() == True.
+    ml_buffer: list[str] = []
+    ml_reason: str = ""        # «quote» / «brackets» / «backslash» — для подсветки
     try:
         while True:
-            # Собрать prompt
+            # Собрать prompt. В multiline-режиме — короткий «... »
+            # с красным цветом если что-то синтаксически сломано.
             palette = None
             try:
                 palette = theme_state.current_palette if theme_state else None
             except Exception:
                 palette = None
             try:
-                prompt_str = build_prompt(palette=palette)
+                prompt_str = build_prompt(
+                    palette=palette,
+                    continuation=bool(ml_buffer),
+                    reason=ml_reason,
+                )
             except Exception:
-                prompt_str = "citadel$ "
+                prompt_str = "... " if ml_buffer else "citadel$ "
 
             # Прочитать команду (в не-интерактивном режиме input() бросит EOFError)
             try:
@@ -397,15 +422,68 @@ def run_repl(
                     if line and not line.endswith("\n"):
                         line += "\n"
             except KeyboardInterrupt:
+                # Ctrl-C в multiline — сбрасываем буфер, НО не выходим из shell.
+                if ml_buffer:
+                    ml_buffer.clear()
+                    ml_reason = ""
+                    print("\n  (multiline buffer cleared)")
+                    continue
                 # Ctrl-C на пустом prompt — не убиваем shell.
                 print("\n  (interrupted — type 'exit' to quit)")
                 continue
             except EOFError:
-                # Ctrl-D / конец pipe.
+                # Ctrl-D / конец pipe. Если буфер непустой — сбрасываем
+                # с предупреждением, иначе выходим.
+                if ml_buffer:
+                    print(f"\n  [ Citadel: dropped {len(ml_buffer)} buffered line(s) on EOF ]")
+                    ml_buffer.clear()
+                    ml_reason = ""
+                    continue
                 print()  # newline после prompt
                 break
 
             line = line.rstrip("\n").rstrip("\r")
+
+            # 1.5 + 1.7: multiline-накопление. Если строка требует
+            # продолжения — кладём в буфер и крутимся дальше.
+            if ml_buffer or line_continues(line):
+                if ml_buffer:
+                    # Это очередная строка для уже открытого выражения.
+                    ml_buffer.append(line)
+                else:
+                    # Первая строка нового multiline-блока.
+                    ml_buffer.append(line)
+
+                # Пересчитываем reason на полном буфере (важно для скобок —
+                # они могут закрыться только через несколько строк).
+                combined = "\n".join(ml_buffer)
+                ml_reason = continuation_reason(combined)
+
+                if not line_continues(combined):
+                    # Буфер завершён. Склеиваем и исполняем как одну команду.
+                    full_line = combined
+                    ml_buffer.clear()
+                    saved_reason = ml_reason
+                    ml_reason = ""
+
+                    if not full_line.strip():
+                        continue
+                    bridge.add_readline(full_line)
+                    handle = bridge.history.begin(full_line)
+                    try:
+                        rc = process_line(full_line)
+                        if rc == -1:
+                            break
+                        exit_code = rc
+                    except KeyboardInterrupt:
+                        print("\n  (interrupted)")
+                        rc = 130
+                    finally:
+                        bridge.history.finish(handle, exit_code=rc)
+                # Иначе — ждём следующую строку.
+                continue
+
+            # 2. Обычный путь: одна строка = одна команда.
             if not line:
                 continue
 
@@ -427,6 +505,15 @@ def run_repl(
                 rc = 130
             finally:
                 bridge.history.finish(handle, exit_code=rc)
+
+            # 1.6: hot-reload алиасов. После ЛЮБОЙ команды проверяем,
+                # изменились ли алиасы на диске — если да, обновляем completer.
+                try:
+                    obj = completer_ref.get("obj")
+                    if obj is not None and hasattr(obj, "refresh"):
+                        obj.refresh()
+                except Exception:
+                    pass
 
     except KeyboardInterrupt:
         # Ctrl-C на самом глубоком уровне — сваливаем.
@@ -480,15 +567,47 @@ def run_repl_non_interactive(input_stream, *, banner: bool = False) -> int:
         # suppress banner
         pass
     last_real_rc = 0
+    # 1.5 + 1.7: multiline-накопление. Нужно и тут — `run_repl_non_interactive`
+    # часто используется из тестов и скриптов.
+    ml_buffer: list[str] = []
     for raw in input_stream:
         line = raw.rstrip("\n").rstrip("\r")
-        if not line:
+        # Пустые строки в multiline-режиме — игнорим, иначе — пропускаем
+        # как no-op, как в обычном цикле.
+        if ml_buffer:
+            if line:
+                ml_buffer.append(line)
+        elif not line:
             continue
-        h = bridge.history.begin(line)
+
+        # Если буфер непустой или строка требует продолжения — копим.
+        if not ml_buffer and not line_continues(line):
+            # Однострочная команда — обычный путь.
+            h = bridge.history.begin(line)
+            try:
+                rc = process_line(line)
+            finally:
+                rec_rc = rc if rc != -1 else 0
+                bridge.history.finish(h, exit_code=rec_rc)
+            if rc == -1:
+                break
+            last_real_rc = rc
+            continue
+
+        # Многострочный путь.
+        if not ml_buffer:
+            ml_buffer.append(line)
+        combined = "\n".join(ml_buffer)
+        if line_continues(combined):
+            # Ждём следующую строку.
+            continue
+        # Готово — исполняем склеенную команду.
+        full = combined
+        ml_buffer.clear()
+        h = bridge.history.begin(full)
         try:
-            rc = process_line(line)
+            rc = process_line(full)
         finally:
-            # exit (-1) не записываем как реальный код — это маркер выхода
             rec_rc = rc if rc != -1 else 0
             bridge.history.finish(h, exit_code=rec_rc)
         if rc == -1:
