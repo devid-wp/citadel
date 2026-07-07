@@ -55,6 +55,8 @@ from .shell_subst import safe_substitute
 
 
 # Известные команды Citadel — для Tab-дополнения.
+# ВАЖНО: `kill` — внешний handler main_handlers.cmd_kill (PID). Job-control
+# команда зарегистрирована под именем `jkill` (см. core/repl._register_default_builtins).
 BUILTIN_COMMANDS = [
     "help", "fetch", "clear", "exit", "q", "center", "pkg", "netscan", "ping", "ip",
     "sysmon", "ps", "kill", "df", "free", "files", "notes", "crypto", "passgen",
@@ -62,8 +64,9 @@ BUILTIN_COMMANDS = [
     "alias", "lock",
     # Новое в v3.0:
     "set", "unset", "export", "vars", "env", "type",
-    # Job control (Фаза 0.5):
-    "jobs", "kill", "wait", "fg",
+    # Job control (Фаза 0.5): 'kill' переименован в 'jkill', чтобы external-имя
+    # 'kill' осталось за main_handlers.cmd_kill (завершение OS-процесса по PID).
+    "jobs", "jkill", "wait", "fg",
 ]
 
 # Слова для подсказки внутри интерактивных приложений (файловый браузер и т.д.)
@@ -373,7 +376,10 @@ def run_command(
     # ----- 3e. Background job management -----
     if argv[0] == "jobs":
         return _builtin_jobs(argv[1:])
-    if argv[0] == "kill":
+    # NB: external-имя "kill" занято main_handlers.cmd_kill (PID). Job-control
+    # переехал на "jkill" — здесь fallback, сработает только если main.py не
+    # зарегистрировал свой handler (например, в тестах).
+    if argv[0] == "jkill":
         return _builtin_kill(argv[1:])
     if argv[0] == "wait":
         return _builtin_wait(argv[1:])

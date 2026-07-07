@@ -484,6 +484,11 @@ def _register_default_builtins() -> None:
     shell_utils.register_builtin("q", _exit)
     shell_utils.register_builtin("quit", _exit)
     shell_utils.register_builtin("fetch", lambda args: (_clear(args), 0)[1])
+    # Фаза 2: Job-control. External-имя `kill` занято main_handlers.cmd_kill
+    # (завершение OS-процесса по PID), поэтому background-job kill
+    # зарегистрирован под `jkill` — см. shell_utils.run_command() строки
+    # 376-383 (fallback) и main_handlers.register_all() (override не нужен).
+    shell_utils.register_builtin("jkill", shell_utils._builtin_kill)
 
     _BUILTINS_REGISTERED = True
 
