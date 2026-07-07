@@ -12,24 +12,32 @@ Citadel Shell — main entry point (v3.0, Фаза 2).
             user_input = input(prompt)
             rc = run_command(user_input)   # ← единая точка входа
             if rc == -1: break             # ← sentinel от exit/q/quit
+  7. atexit + sys.excepthook          — снапшот в ~/.citadel_recovery/ при крахе.
 
 Вся кастомная логика команд (help, fetch, clear, center, pkg, ...) переехала
 в main_handlers.py — здесь только bootstrap и цикл.
 """
 from __future__ import annotations
 
+import atexit
 import os
 import sys
+import traceback
 
 import config
 
 from core.interface import clear_screen, terminal_print, display_fastfetch
 from core.auth import login_screen
 from core.shell_utils import install_completer, run_command
-from core.repl import _register_default_builtins
+from core.repl import _register_default_builtins, HistoryBridge
 from system.hardware import get_system_specs
 from system.logger import log_command, log_security
 from system.geo import get_location
+from system.recovery import (
+    install_recovery_hooks,
+    snapshot_session,
+    REASON_EXIT,
+)
 
 # AR-HUD subsystem.
 from core.theme_state import get_theme_state
@@ -68,6 +76,37 @@ def main() -> None:
     #        (перезатирает help/clear/fetch; exit/q/quit не трогает).
     _register_default_builtins()
     _register_main_handlers(_shell_utils)
+
+    # 4c. HistoryBridge — readline <-> HistoryManager.
+    #     Нам нужен, чтобы:
+    #       • ↑/↓ работали в интерактивной сессии (readline-буфер);
+    #       • ~/.citadel_history персистился через HistoryManager.finish() →
+    #         JSONL append (см. core/shell_history.py:_append_to_disk);
+    #       • на exit/Ctrl-D/EofError — bridge.close() делает fsync +
+    #         write_history_file для readline-буфера.
+    bridge = HistoryBridge()
+    bridge.setup_readline()
+
+    # 4d. Recovery-хуки (Фаза 2.5):
+    #       • atexit — снапшот при ЛЮБОМ нормальном выходе (exit / return /
+    #         Ctrl-D / необработанное исключение, не пойманное try/except);
+    #       • sys.excepthook — снапшот при непойманном исключении в основном
+    #         потоке (типичный crash REPL'а).
+    # install_recovery_hooks() возвращает setter для cwd/истории, чтобы
+    # обновлять их по ходу сессии.
+    set_session_state = install_recovery_hooks(
+        initial_cwd=os.getcwd(),
+        recent_cmds=[],
+    )
+    # Гарантируем снапшот и при штатном выходе (exit/q/quit) — дополнительно
+    # к excepthook. atexit НЕ срабатывает на SIGKILL/SIGTERM, но срабатывает
+    # на sys.exit(), KeyboardInterrupt после основного try, и нормальном return.
+    atexit.register(
+        snapshot_session,
+        reason=REASON_EXIT,
+        cwd=os.getcwd(),
+        recent_cmds_provider=lambda: list(CMD_HISTORY)[-20:],
+    )
 
     # 5. Баннер и fastfetch
     specs = get_system_specs()
@@ -112,6 +151,9 @@ def main() -> None:
             print("\nИспользуйте 'exit' или 'q' для выхода.")
             continue
         except EOFError:
+            # Ctrl-D / конец pipe. Завершаем штатно: bridge.close() сохранит
+            # историю, atexit-хук сделает снапшот сессии.
+            print()
             break
 
         if not user_input:
@@ -120,13 +162,25 @@ def main() -> None:
         # Аудит: пишем в журнал + legacy-список для cmd_history.
         log_command(user_input)
         CMD_HISTORY.append(user_input)
+        set_session_state(
+            cwd=os.getcwd(),
+            recent_cmds=list(CMD_HISTORY)[-20:],
+        )
 
-        # Единая точка входа: tokenizer → vars → alias → builtin → pipeline.
+        # HistoryBridge: каждая команда оборачивается в begin/finish.
+        # finish() пишет JSONL-строку в ~/.citadel_history сразу после
+        # завершения команды (см. core/shell_history.py:_append_to_disk).
+        # Это значит, что история НЕ теряется даже при kill -9 в середине
+        # сессии — последняя записанная команда уже на диске.
+        handle = bridge.history.begin(user_input)
         try:
             rc = run_command(user_input)
         except Exception as e:  # noqa: BLE001
             print(f"{config.COLORS['RED']}Ошибка выполнения:{config.COLORS['RESET']} {e}\n")
             rc = 1
+        finally:
+            bridge.history.finish(handle, exit_code=rc)
+        bridge.add_readline(user_input)
 
         # Sentinel -1: выход (выставлен exit/q/quit через core/repl._register_default_builtins).
         if rc == -1:
@@ -138,12 +192,47 @@ def main() -> None:
             )
             break
 
+    # 7. Graceful shutdown. Сохраняем readline-буфер в файл и делаем
+    #    fsync на JSONL-историю (на случай kill -9 сразу после return).
+    try:
+        bridge.close()
+    except Exception:  # noqa: BLE001
+        pass
+
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        # Ctrl-C в самом начале (до login / до REPL) — корректный выход
+        # с recovery-снапшотом.
         print("\n[ EXIT ]: Принудительное завершение.")
+        try:
+            snapshot_session(
+                reason=REASON_INTERRUPT,
+                cwd=os.getcwd(),
+                recent_cmds_provider=lambda: list(CMD_HISTORY)[-20:],
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    except SystemExit:
+        # sys.exit() из login_screen при провале auth. Пробрасываем дальше,
+        # но atexit всё равно отработает.
+        raise
+    except Exception as e:  # noqa: BLE001
+        # Необработанное исключение в main(). sys.excepthook его уже
+        # залогировал и сделал снапшот; тут просто печатаем traceback
+        # в stderr для пользователя (если excepthook ещё не отработал —
+        # например, в тестах без перехвата).
+        traceback.print_exc()
+        try:
+            snapshot_session(
+                reason=REASON_CRASH,
+                cwd=os.getcwd(),
+                recent_cmds_provider=lambda: list(CMD_HISTORY)[-20:],
+            )
+        except Exception:  # noqa: BLE001
+            pass
     finally:
         # Корректная остановка HUD-модулей. На случай, если процесс
         # прерывается до завершения main() (Ctrl-C в начале сессии) —
