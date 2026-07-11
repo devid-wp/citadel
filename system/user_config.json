@@ -12,12 +12,12 @@
         "region": "Kyiv City",
         "country": "Ukraine",
         "country_code": "UA",
-        "lat": 50.458,
-        "lon": 30.5303,
+        "lat": 50.4547,
+        "lon": 30.5238,
         "timezone": "Europe/Kyiv",
         "org": "SUNNET LLC",
         "source": "ipapi.co",
-        "fetched_at": 1783418952
+        "fetched_at": 1783782148
     },
     "favorite_city": null
 }

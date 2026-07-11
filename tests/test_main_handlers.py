@@ -18,6 +18,9 @@ Tests for main_handlers.py (Citadel OS, Фаза 2).
 ту же точку входа, что и main.py.
 """
 from __future__ import annotations
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
 
@@ -179,3 +182,14 @@ def test_unknown_command():
     """xyz_unknown — не builtin и не в PATH → rc != 0 (FileNotFoundError → 127)."""
     rc = _shell.run_command("xyz_unknown_xyz_12345")
     assert rc != 0
+
+
+def test_shell_brackets_command():
+    from main_handlers import cmd_test_brackets
+    
+    # Проверяем успешное сравнение строк
+    assert cmd_test_brackets(["abc", "==", "abc", "]]"]) is True
+    assert cmd_test_brackets(["abc", "!=", "def", "]]"]) is True
+    # Проверяем числа
+    assert cmd_test_brackets(["10", "-gt", "5", "]]"]) is True
+    assert cmd_test_brackets(["2", "-le", "1", "]]"]) is False

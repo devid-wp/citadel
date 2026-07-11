@@ -11,7 +11,7 @@
 используется pyreadline3 (если установлен). На Linux/macOS работает из коробки.
 """
 from __future__ import annotations
-
+from core.shell_flow import parse_and_run_if
 import os
 import sys
 import time
@@ -212,6 +212,7 @@ def _try_builtin(argv: List[str]):
 
 
 def run_command(
+        
     raw_line: str,
     *,
     store: Optional[VariableStore] = None,
@@ -287,9 +288,27 @@ def run_command(
         for err in result.errors:
             sys.stderr.write(f"citadel: {err.message}\n")
 
-    # ----- 2. Variable expansion -----
+   # ----- 2. Variable expansion -----
     var_store = store or get_default_store()
     tokens = var_store.expand_tokens(result.tokens)
+
+    # ─── ВСТАВЛЯЕМ НАШ СУПЕР IF-ДВИЖОК СЮДА! ───────────────────────────
+    # Проверяем, есть ли вообще токены и является ли первый токен словом "if"
+    if tokens and tokens[0].kind == "word" and tokens[0].value == "if":
+        from core.shell_flow import parse_and_run_if
+        
+        # Переводим объекты токенов обратно в список строк (argv) для нашего shell_flow
+        raw_argv = [t.value for t in tokens]
+        
+        # Вызываем парсер. Если внутри then/else лежат команды, мы рекурсивно 
+        # скармливаем их этой же функции run_command!
+        return parse_and_run_if(
+            raw_argv, 
+            lambda ts: run_command(" ".join(ts), store=store, history=history, on_line=on_line)
+        )
+    # ───────────────────────────────────────────────────────────────────
+
+    
 
     # ----- 2.5. Glob expansion — развернуть *.py и подобные в списки файлов -----
     tokens = expand_glob_tokens(tokens, cwd=os.getcwd())

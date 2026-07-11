@@ -17,6 +17,7 @@
 # core.repl._register_default_builtins().
 
 from __future__ import annotations
+from core.shell_arith import eval_test_condition
 
 import os
 import sys
@@ -495,13 +496,45 @@ BUILTIN_HANDLERS = {
     # exit/q/quit НЕ регистрируем — их держит core.repl (sentinel -1).
 }
 
-
 def register_all(shell_utils_module) -> None:
     """
     Зарегистрировать все handler'ы из BUILTIN_HANDLERS в shell_utils.
-
-    Идемпотентно: повторный вызов просто перезатирает записи (это и есть
-    наше намерение — перебиваем help/clear/fetch из _register_default_builtins).
     """
+    # 1. Регистрируем основной массив команд из словаря
     for name, handler in BUILTIN_HANDLERS.items():
         shell_utils_module.register_builtin(name, handler)
+    
+    # 2. Регистрируем нашу новую системную команду условий вне цикла
+    shell_utils_module.register_builtin("[[", cmd_test_brackets)
+    # Регистрируем true и false
+    shell_utils_module.register_builtin("true", cmd_true)
+    shell_utils_module.register_builtin("false", cmd_false)
+
+
+def cmd_test_brackets(args: list[str]) -> bool:
+    """
+    Встроенная команда [[ ... ]] для проверки условий.
+    Вызывается как: [[ -f file ]] или [[ X -gt 5 ]]
+    """
+    if not args:
+        return False
+        
+    # Собираем все аргументы обратно в строку условия
+    # Если на конце осталась закрывающая скобка ']]', отрезаем её
+    cond_str = " ".join(args)
+    if cond_str.endswith("]]"):
+        cond_str = cond_str[:-2].strip()
+        
+    # Запускаем наш движок условий
+    result = eval_test_condition(cond_str)
+    
+    # Возвращаем True/False в логику шелла
+    return result
+
+def cmd_true(args: list[str]) -> int:
+    """Встроенная команда true: всегда возвращает 0 (успех)."""
+    return 0
+
+def cmd_false(args: list[str]) -> int:
+    """Встроенная команда false: всегда возвращает 1 (ошибка)."""
+    return 1

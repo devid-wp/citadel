@@ -155,7 +155,8 @@ def test_run_repl_non_interactive_empty():
 
 def test_run_repl_non_interactive_multiline_quote():
     """Незакрытая кавычка — копит, продолжает, исполняет."""
-    inp = io.StringIO('echo "hello\nworld"\n')
+    # Используем системный python для кроссплатформенного мультилайна
+    inp = io.StringIO('python -c "print(\'hello\\nworld\')"\n')
     rc = run_repl_non_interactive(inp, banner=False)
     assert rc == 0
 

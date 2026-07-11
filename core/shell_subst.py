@@ -31,7 +31,7 @@ import shlex
 import sys
 import threading
 from typing import List, Optional, Tuple
-
+from core.shell_arith import eval_arithmetic
 
 _MAX_SUBST_DEPTH = 8
 _MAX_OUTPUT_BYTES = 1024 * 1024   # 1 MiB safety cap
@@ -376,3 +376,62 @@ if __name__ == "__main__":
         print(f"  [{marker}] {s!r:35}  spans={len(spans)}  expect={should_find}")
         for sp in spans:
             print(f"        -> body={sp.body!r}  raw={sp.raw_text!r}")
+
+
+
+def perform_substitution(
+    line: str,
+    *,
+    env: Optional[dict] = None,
+    max_depth: int = _MAX_SUBST_DEPTH,
+) -> str:
+    """
+    Развернуть все $((...)), $(...) и `...` в строке, рекурсивно до max_depth.
+    Возвращает новую строку с подставленными значениями.
+    """
+    depth = 0
+    current = line
+    
+    # Извлекаем словарь переменных из env, если он передан, для математического движка
+    shell_vars = env if env is not None else {}
+
+    while depth < max_depth:
+        # ---- ВРЕЗАЕМ АРИФМЕТИКУ СЮДА ----
+        # Ищем конструкции $(( выражение )) до того, как сработает лексер команд
+        def replace_math(match):
+            expr = match.group(1)
+            try:
+                # Вызываем наш созданный ранее арифметический модуль
+                return str(eval_arithmetic(expr, shell_vars))
+            except Exception as e:
+                sys.stderr.write(f"citadel: arithmetic error: {e}\n")
+                return "0"
+
+        # Находим $(( ... )) и заменяем результатом вычисления
+        current = re.sub(r'\$\(\((.*?)\)\)', replace_math, current)
+        # ---------------------------------
+
+        # Дальше идет твой родной, неизмененный код поиска команд $(cmd) и `cmd`
+        spans = find_substitutions(current)
+        if not spans:
+            # Если и математики больше нет, и команды кончились — выходим
+            if "$(( " not in current:
+                break
+
+        # Обрабатываем СПРАВА НАЛЕВО, чтобы не сбивать индексы.
+        new_parts: List[str] = []
+        prev_end = 0
+
+        for span in reversed(spans):
+            # Подставляем результат команды.
+            result = _run_capture(span.body, env=env)
+            new_parts.append(result)
+            new_parts.append(current[prev_end:span.start])
+            prev_end = span.end
+
+        new_parts.append(current[prev_end:])
+        new_parts.reverse()
+        current = "".join(new_parts)
+        depth += 1
+
+    return current

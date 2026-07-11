@@ -173,31 +173,41 @@ def test_set_session_state_updates_cwd_and_history(isolated_recovery_dir):
 # ============================================================================
 # 6. _prune_old_snapshots оставляет только N свежих
 # ============================================================================
-
 def test_prune_keeps_only_n_snapshots(isolated_recovery_dir):
     import time
     import system.recovery as r
-    # Создадим 5 снапшотов с разным mtime, keep=3 (выставлено в фикстуре).
+    import os
+    from pathlib import Path
+    
+    base_time = time.time()
     paths = []
+    
+    # Генерируем 5 снапшотов
     for i in range(5):
+        time.sleep(0.02)
         p = r.snapshot_session(reason=r.REASON_EXIT, cwd=".", recent_cmds=[f"cmd{i}"])
-        # Сдвигаем mtime, чтобы prune мог отсортировать.
-        new_mtime = time.time() - (5 - i) * 10
-        os.utime(p, (new_mtime, new_mtime))
         paths.append(p)
 
-    # Дёрнем prune явно через ещё один snapshot (snapshot_session сам зовёт prune).
-    r.snapshot_session(reason=r.REASON_EXIT, cwd=".", recent_cmds=["final"])
+    # Принудительно выставляем mtime ВСЕМ файлам ПОСЛЕ того, как они все созданы
+    # Теперь у них гарантированно строгий порядок: i=0 (самый старый), i=4 (самый свежий)
+    for i, p in enumerate(paths):
+        new_mtime = base_time + (i * 10)
+        try:
+            os.utime(p, (new_mtime, new_mtime))
+        except FileNotFoundError:
+            pass
 
-    remaining = sorted(p.name for p in Path(isolated_recovery_dir).iterdir())
-    # 3 самых свежих (последние 3 из 6). Самые старые должны быть удалены.
-    assert len(remaining) == 3
-    # oldest (paths[0] и paths[1]) удалены
-    assert not (isolated_recovery_dir / Path(paths[0]).name).exists()
-    assert not (isolated_recovery_dir / Path(paths[1]).name).exists()
-    # newest сохранён
-    assert (isolated_recovery_dir / "recovery_final_exit.json".replace("recovery_", "recovery_").replace(".json", ".json") or True)
-
+    # Вот теперь вызываем чистильщик, когда на диске идеальный порядок mtime
+    r._prune_old_snapshots(keep=3)
+    
+    # Проверяем, что два самых старых (i=0 и i=1) удалены
+    assert not Path(paths[0]).exists()
+    assert not Path(paths[1]).exists()
+    
+    # А три самых свежих (i=2, i=3, i=4) остались
+    assert Path(paths[2]).exists()
+    assert Path(paths[3]).exists()
+    assert Path(paths[4]).exists()
 
 # ============================================================================
 # 7. list_recovery_snapshots
@@ -206,10 +216,20 @@ def test_prune_keeps_only_n_snapshots(isolated_recovery_dir):
 def test_list_recovery_snapshots_sorted_newest_first(isolated_recovery_dir):
     import time
     import system.recovery as r
+    import os
+    
+    base_time = time.time()
+    paths = []
     for i in range(3):
+        time.sleep(0.05)  # Пауза ДО создания!
         p = r.snapshot_session(reason=r.REASON_EXIT, cwd=".", recent_cmds=[f"cmd{i}"])
-        os.utime(p, (time.time() - (3 - i) * 10, time.time() - (3 - i) * 10))
+        
+        new_mtime = base_time + (i * 10)
+        os.utime(p, (new_mtime, new_mtime))
+        paths.append(p)
+        
     snaps = r.list_recovery_snapshots()
     assert len(snaps) == 3
-    # Newest first → ts по убыванию.
-    assert snaps[0]["ts"] >= snaps[1]["ts"] >= snaps[2]["ts"]
+    # Проверяем, что первый в списке — самый свежий (у него mtime больше всего)
+    assert snaps[0]["path"] == paths[-1]
+
