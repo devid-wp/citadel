@@ -1,0 +1,12 @@
+linux
+linux-firmware
+base
+python
+python-pip
+python-bcrypt
+python-cryptography
+fastfetch
+git
+iproute2
+net-tools
+procps-ng

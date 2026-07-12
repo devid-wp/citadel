@@ -1,0 +1,12 @@
+iso_name="citadelos"
+iso_label="CITADEL_OS"
+iso_publisher="Citadel OS Project"
+iso_application="Citadel OS Live/Rescue CD"
+iso_version="3.0"
+install_dir="arch"
+buildmodes=('iso')
+bootmodes=('bios.syslinux.mbr' 'bios.syslinux.eltorito' 'uefi-x86_64.systemd-boot.esp' 'uefi-x86_64.systemd-boot.eltorito')
+arch="x86_64"
+pacman_conf="pacman.conf"
+airootfs_image_type="squashfs"
+airootfs_image_tool_options=('-comp' 'xz' '-Xbcj' 'x86')
