@@ -18,6 +18,7 @@ Citadel Shell — main entry point (v3.0, Фаза 2).
 в main_handlers.py — здесь только bootstrap и цикл.
 """
 from __future__ import annotations
+from core.executor import run_command
 
 import atexit
 import os
@@ -28,7 +29,7 @@ import config
 
 from core.interface import clear_screen, terminal_print, display_fastfetch
 from core.auth import login_screen
-from core.shell_utils import install_completer, run_command
+from core.shell_utils import install_completer
 from core.repl import _register_default_builtins, HistoryBridge
 from system.hardware import get_system_specs
 from system.logger import log_command, log_security
