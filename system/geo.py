@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
+import config
 from system.user_config import cache_location, get_cached_location
 
 CACHE_TTL = 3600  # 1 час
@@ -22,7 +23,10 @@ CACHE_TTL = 3600  # 1 час
 # Таймаут HTTP-запросов (сек) — чтобы медленный интернет не замораживал оболочку
 HTTP_TIMEOUT = 4.0
 
-USER_AGENT = "CitadelOS/3.0 (geolocation)"
+# User-Agent включает публичную версию + версию движка (Source-of-truth — config.py).
+USER_AGENT = (
+    f"CitadelOS/{config.VERSION} (Core {config.CORE_VERSION}; geolocation)"
+)
 
 
 def _http_get_json(url: str) -> Optional[dict]:

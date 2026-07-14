@@ -21,8 +21,10 @@ def update_config_value(key, value, is_string=True):
             return True
         return False
 
-    # Фолбэк: legacy путь — писать прямо в config.py.
-    config_path = "config.py"
+    # Фолбэк: legacy путь — писать прямо в config.py. В production —
+    # /opt/citadel/config.py, в dev — <repo>/config.py.
+    citadel_home = getattr(config, "CITADEL_HOME", ".")
+    config_path = os.path.join(citadel_home, "config.py")
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -111,7 +113,8 @@ def run_security_audit():
             # Ищем прослушивание 0.0.0.0 (LISTENING)
             insecure_listeners = re.findall(r'0\.0\.0\.0:(\d+)\s+.*LISTENING', netstat)
         else:
-            netstat = subprocess.check_output("ss -tlnp", shell=True).decode('utf-8')
+            ss_bin = getattr(config, "TOOL_SS", "/usr/bin/ss")
+            netstat = subprocess.check_output(f"{ss_bin} -tlnp", shell=True).decode('utf-8')
             insecure_listeners = re.findall(r'\*|0\.0\.0\.0:(\d+)', netstat)
             
         if insecure_listeners:

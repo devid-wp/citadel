@@ -233,7 +233,7 @@ def run_weather_app():
     accent = palette.accent  # в DAY/EVENING=YELLOW, в NIGHT=RED
 
     print(f"{theme_color}=========================================")
-    print("         CITADEL WEATHER ENGINE v1.0    ")
+    print("         CITADEL WEATHER ENGINE        ")
     print(f"========================================={reset}\n")
 
     print(f"{accent}[1]{reset} Автоматически определить моё местоположение по IP")

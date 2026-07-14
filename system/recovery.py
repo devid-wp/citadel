@@ -10,11 +10,11 @@ from typing import Any, Callable, List, Optional
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color, display_progress_bar
 
-BACKUP_DIR = "system/backups"
+BACKUP_DIR = getattr(config, "CITADEL_BACKUP_DIR", "system/backups")
 
 # Recovery snapshots (Фаза 2.5). Каждый крах / штатный выход пишет JSON
-# в ~/.citadel_recovery/{timestamp}.json — pwd, последние команды, traceback.
-RECOVERY_DIR = os.path.expanduser("~/.citadel_recovery")
+# в $CITADEL_RECOVERY_DIR/{timestamp}.json — pwd, последние команды, traceback.
+RECOVERY_DIR = getattr(config, "CITADEL_RECOVERY_DIR", os.path.expanduser("~/.citadel_recovery"))
 RECOVERY_KEEP = 10  # сколько последних снапшотов хранить
 
 # Reason-теги для имени файла и поля "reason" внутри JSON.
@@ -57,28 +57,21 @@ def restore_backup(backup_path):
         return False, str(e)
 
 def check_system_integrity():
-    """Проверяет целостность критических файлов системы Citadel"""
-    critical_files = [
-        "main.py",
-        "config.py",
-        "core/interface.py",
-        "core/auth.py",
-        "core/shell_utils.py",
-        "system/hardware.py",
-        "system/process_mgr.py",
-        "system/network.py",
-        "system/package_mgr.py",
-        "system/recovery.py",
-        "system/geo.py",
-        "system/user_config.py",
-        "system/logger.py",
-        "apps/crypto.py",
-        "apps/passgen.py",
-        "apps/file_browser.py",
-        "apps/notes.py",
-        "apps/launcher.py",
-        "apps/weather.py",
+    """Проверяет целостность критических файлов системы Citadel.
+    В production пути абсолютные (/opt/citadel/...), в dev — относительные."""
+    # Префикс пути: production (/opt/citadel) или корень репо (dev).
+    home = getattr(config, "CITADEL_HOME", ".")
+    prefix = "" if home in ("", ".") else (home.rstrip("/") + "/")
+    rel_files = [
+        "main.py", "config.py",
+        "core/interface.py", "core/auth.py", "core/shell_utils.py",
+        "system/hardware.py", "system/process_mgr.py", "system/network.py",
+        "system/package_mgr.py", "system/recovery.py", "system/geo.py",
+        "system/user_config.py", "system/logger.py",
+        "apps/crypto.py", "apps/passgen.py", "apps/file_browser.py",
+        "apps/notes.py", "apps/launcher.py", "apps/weather.py",
     ]
+    critical_files = [prefix + r for r in rel_files]
 
     headers = ["Файл", "Статус", "Размер", "Рекомендация"]
     rows = []
@@ -269,7 +262,7 @@ def snapshot_session(
                              когда список может расти в момент exit).
         traceback_text: готовый traceback (для crash-ветки).
         exc: исключение (если задано — вытащим из него __traceback__).
-        extra: дополнительные поля для JSON (например, "version": "3.0").
+        extra: дополнительные поля для JSON (например, "version": "1.0").
 
     Returns:
         Полный путь к файлу снапшота, либо None при ошибке записи.
@@ -315,6 +308,7 @@ def snapshot_session(
         "recent_cmds": list(recent_cmds),
         "user": getattr(config, "USER_NAME", "unknown"),
         "version": getattr(config, "VERSION", "unknown"),
+        "core_version": getattr(config, "CORE_VERSION", "unknown"),
     }
     if traceback_text:
         payload["traceback"] = traceback_text

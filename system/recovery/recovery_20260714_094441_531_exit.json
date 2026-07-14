@@ -1,0 +1,15 @@
+{
+  "schema": "citadel.recovery/v1",
+  "ts": 1784011481.5315943,
+  "ts_human": "2026-07-14 09:44:41",
+  "reason": "exit",
+  "cwd": "D:\\citadel",
+  "recent_cmds": [
+    "ls",
+    "help",
+    "exit"
+  ],
+  "user": "User",
+  "version": "1.0",
+  "core_version": "3.0"
+}

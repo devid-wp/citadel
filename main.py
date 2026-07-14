@@ -1,5 +1,5 @@
 """
-Citadel Shell — main entry point (v3.0, Фаза 2).
+Citadel Shell — main entry point (v1.0, Core 3.0).
 
 Структура:
   1. login_screen()                  — pre-REPL аутентификация.

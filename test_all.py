@@ -1,5 +1,5 @@
 """
-Тесты Citadel OS v3.0.
+Тесты Citadel OS v1.0 (Core 3.0).
 
 Запуск:
     python test_all.py

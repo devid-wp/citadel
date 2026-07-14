@@ -99,7 +99,9 @@ def change_password(old_password: str, new_password: str):
         return False, "Новый пароль должен содержать минимум 4 символа"
 
     new_hash = hash_password(new_password)
-    config_path = "config.py"
+    # В production — /opt/citadel/config.py, в dev — <repo>/config.py.
+    citadel_home = getattr(config, "CITADEL_HOME", ".")
+    config_path = os.path.join(citadel_home, "config.py")
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:

@@ -62,7 +62,7 @@ BUILTIN_COMMANDS = [
     "sysmon", "ps", "kill", "df", "free", "files", "notes", "crypto", "passgen",
     "launcher", "recovery", "history", "ls", "cd", "cat", "weather", "geo", "log",
     "alias", "lock",
-    # Новое в v3.0:
+    # Новое в Core v3.0:
     "set", "unset", "export", "vars", "env", "type",
     # Job control (Фаза 0.5): 'kill' переименован в 'jkill', чтобы external-имя
     # 'kill' осталось за main_handlers.cmd_kill (завершение OS-процесса по PID).

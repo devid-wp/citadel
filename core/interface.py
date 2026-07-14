@@ -148,10 +148,10 @@ def display_fastfetch(sys_info):
         print("| |   | | __| __| | | | |  _| | |    ")
         print("| |___| | |_| |_| | |_| | |___| |___ ")
         print(" \\____|_|\\__|\\__|_|____/|_____|_____|")
-        print(f"        CITADEL SYSTEM CORE v{config.VERSION}{reset}\n")
+        print(f"        CITADEL SYSTEM CORE v{getattr(config, 'CORE_VERSION', '3.0')}{reset}\n")
 
     user_str = f"{config.USER_NAME}@citadel-core"
-    ver_str = f"Citadel OS v{config.VERSION}"
+    ver_str = f"Citadel OS v{config.VERSION} (Core {config.CORE_VERSION})"
     cpu_str = sys_info.get('cpu_model', 'N/A')
     ram_str = sys_info.get('memory', 'N/A')
     uptime_str = sys_info.get('uptime', 'N/A')

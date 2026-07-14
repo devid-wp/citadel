@@ -1,5 +1,5 @@
 # FILE: core/shell_alias.py
-# Citadel OS — Alias Engine v2.
+# Citadel OS — Alias Engine (Core v3.0).
 #
 # Что умеет новый движок:
 #   - Обратная совместимость: legacy-формат {"ll": "ls -la"} → работает.

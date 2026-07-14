@@ -2,15 +2,21 @@
 Модуль пользовательских настроек Citadel OS.
 
 Хранит пользовательские предпочтения (тема, имя, алиасы, последняя локация и т.д.)
-в отдельном JSON-файле — system/user_config.json. Это позволяет менять настройки
-без перезаписи config.py и не ломать исходный код при сбоях.
+в отдельном JSON-файле — $CITADEL_USER_CONFIG (по умолчанию
+/root/.config/citadel/user_config.json в production, system/user_config.json в dev).
+Это позволяет менять настройки без перезаписи config.py и не ломать исходный
+код при сбоях.
 """
 import os
 import json
 import time
 from typing import Any
 
-CONFIG_PATH = "system/user_config.json"
+# Путь к JSON конфигурации. В production — /root/.config/citadel/user_config.json,
+# в dev (CITADEL_DEV=1 или при запуске вне /opt/citadel) — system/user_config.json.
+CONFIG_PATH = getattr(
+    __import__("config"), "CITADEL_USER_CONFIG", "system/user_config.json"
+)
 
 _DEFAULTS = {
     "user_name": "User",

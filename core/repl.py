@@ -54,7 +54,9 @@ from .shell_signals import get_signal_context
 # Конфигурация REPL
 # ============================================================================
 
-HISTORY_PATH = os.path.expanduser("~/.citadel_history")
+HISTORY_PATH = getattr(
+    __import__("config"), "CITADEL_HISTORY_FILE", os.path.expanduser("~/.citadel_history")
+)
 HISTORY_MAXLEN = 500  # синхронизировано с HistoryManager default
 
 EXIT_COMMANDS = frozenset({"exit", "q", "quit", ":q", ":x"})
@@ -158,7 +160,7 @@ def build_banner(
     Структура:
         ┌──────────────────────────────────────────────┐
         │   <логотип Citadel из logo.txt, если есть>   │
-        │  CITADEL OS · Modular Core v3.0              │
+        │  CITADEL OS · Core v{config.CORE_VERSION}                 │
         │                                              │
         │  Recent commands:                            │
         │    1. ls -la                                 │
@@ -215,7 +217,7 @@ def build_banner(
             )
     else:
         # Нет logo.txt — fallback на текстовую шапку.
-        title = f"  CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+        title = f"  CITADEL OS  -  Core v{getattr(config, 'CORE_VERSION', '3.0')}"
         pad = W - len(title)
         lines.append(
             f"{primary}  │{reset}{accent}{title}{reset}{' ' * pad}{primary}│{reset}"
@@ -224,7 +226,7 @@ def build_banner(
     lines.append(sep)
 
     # Подпись версии + строка-разделитель.
-    ver = f"CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+    ver = f"CITADEL OS  -  Core v{getattr(config, 'CORE_VERSION', '3.0')}"
     pad = W - len(ver)
     lines.append(
         f"{primary}  │{reset}  {accent}{ver}{reset}{' ' * pad}{primary}│{reset}"
@@ -268,7 +270,7 @@ def build_banner(
 BANNER = (
     f"{config.COLORS.get('PURPLE', '')}"
     f"  ┌──────────────────────────────────────────────┐\n"
-    f"  │  Citadel Shell v{config.VERSION:>14}                │\n"
+    f"  │  Citadel Shell v{config.VERSION:>14}  (Core {config.CORE_VERSION})       │\n"
     f"  │  Type 'help' for commands. Ctrl-D / 'exit' to quit.  │\n"
     f"  └──────────────────────────────────────────────┘"
     f"{config.COLORS.get('RESET', '')}"
@@ -323,7 +325,7 @@ def build_prompt(
         return f"{marker_color}... {reset}"
 
     user = user_name or getattr(config, "USER_NAME", "user")
-    ver = version or getattr(config, "VERSION", "3.0")
+    ver = version or getattr(config, "VERSION", "1.0")
     cwd = cwd or os.getcwd()
     base = os.path.basename(cwd) or cwd
     sep = f"{accent}@{reset}"
@@ -609,12 +611,12 @@ def run_repl(
                 print(banner_text)
             else:
                 # Non-TTY: сухой однострочный баннер без ANSI.
-                print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+                print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
         except UnicodeEncodeError:
-            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+            print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
         except Exception:
             # Любой сбой при построении баннера — фоллбек на простой текст.
-            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+            print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
 
     # 5. Loop
     _input = raw_input if raw_input is not None else input

@@ -4,7 +4,8 @@ from core.interface import clear_screen, terminal_print, display_table, get_them
 from core.theme_state import get_theme_state
 from rendering.draw_utils import styled_print
 
-NOTES_DIR = "system/notes"
+# Папка с заметками. В production — /root/.config/citadel/notes/, в dev — system/notes/.
+NOTES_DIR = getattr(config, "CITADEL_NOTES_DIR", "system/notes")
 
 def run_notes_app():
     """Простое консольное приложение заметок для Citadel OS"""

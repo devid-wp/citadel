@@ -34,9 +34,9 @@ def scan_network():
         except Exception as e:
             terminal_print(f"[ ERROR ]: Не удалось запустить arp: {e}", color_code=config.COLORS["RED"])
     else:
-        # Для Linux: парсим /proc/net/arp или arp -n
+        # Для Linux: парсим /proc/net/arp или /usr/sbin/arp -n.
         try:
-            # Пытаемся прочитать /proc/net/arp
+            # Пытаемся прочитать /proc/net/arp (нет внешних зависимостей)
             if os.path.exists("/proc/net/arp"):
                 with open("/proc/net/arp", "r") as f:
                     lines = f.readlines()[1:] # пропускаем заголовок
@@ -48,13 +48,15 @@ def scan_network():
                             if mac != "00:00:00:00:00:00":
                                 found_devices.append((ip, mac))
             else:
-                arp_output = subprocess.check_output("arp -n", shell=True).decode('utf-8')
+                arp_bin = getattr(config, "TOOL_ARP", "/usr/sbin/arp")
+                arp_output = subprocess.check_output(f"{arp_bin} -n", shell=True).decode('utf-8')
                 ip_pattern = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+\S+\s+([0-9a-fA-F:]{17})')
                 found_devices = ip_pattern.findall(arp_output)
         except Exception:
             try:
-                # Альтернативный парсинг ip neigh
-                neigh_output = subprocess.check_output("ip neigh show", shell=True).decode('utf-8')
+                # Альтернативный парсинг через /usr/bin/ip neigh show
+                ip_bin = getattr(config, "TOOL_IP", "/usr/bin/ip")
+                neigh_output = subprocess.check_output(f"{ip_bin} neigh show", shell=True).decode('utf-8')
                 for line in neigh_output.split('\n'):
                     parts = line.split()
                     if len(parts) >= 5 and "lladdr" in parts:
@@ -113,7 +115,8 @@ def ping_host():
     if os.name == 'nt':
         cmd = f"ping -n 4 {host}"
     else:
-        cmd = f"ping -c 4 {host}"
+        ping_bin = getattr(config, "TOOL_PING", "/usr/bin/ping")
+        cmd = f"{ping_bin} -c 4 {host}"
         
     try:
         # Запускаем пинг и стримим его вывод в реальном времени
@@ -152,13 +155,14 @@ def display_interfaces():
         except Exception as e:
             print(f"Ошибка: {e}")
     else:
-        # Linux: ip -br addr или ifconfig
+        # Linux: /usr/bin/ip -br addr (iproute2) или /usr/sbin/ifconfig (net-tools)
         try:
-            res = subprocess.check_output("ip -br addr", shell=True).decode('utf-8')
+            ip_bin = getattr(config, "TOOL_IP", "/usr/bin/ip")
+            res = subprocess.check_output(f"{ip_bin} -br addr", shell=True).decode('utf-8')
             print(res)
         except Exception:
             try:
-                res = subprocess.check_output("ifconfig", shell=True).decode('utf-8')
+                res = subprocess.check_output("/usr/sbin/ifconfig", shell=True).decode('utf-8')
                 print(res)
             except Exception as e:
                 print(f"Не удалось получить сетевые настройки: {e}")

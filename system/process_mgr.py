@@ -67,7 +67,7 @@ def run_system_monitor():
     reset = config.COLORS["RESET"]
     
     print(f"{theme_color}==================================================")
-    print("         МОНИТОРИНГ РЕСУРСОВ CITADEL v3.0         ")
+    print("         МОНИТОРИНГ РЕСУРСОВ CITADEL        ")
     print(f"=================================================={reset}")
     print("\nСбор данных о нагрузке (нажмите Ctrl+C для выхода)...\n")
     

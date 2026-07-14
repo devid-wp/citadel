@@ -22,7 +22,7 @@ def run_cmd(cmd, shell=True):
 def print_header():
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f"{PURPLE}==================================================================={RESET}")
-    print(f"{PURPLE}          CITADEL OS v3.0 - АВТОМАТИЧЕСКИЙ УСТАНОВЩИК              {RESET}")
+    print(f"{PURPLE}          CITADEL OS v1.0 (Core 3.0) - АВТОМАТИЧЕСКИЙ УСТАНОВЩИК       {RESET}")
     print(f"{PURPLE}==================================================================={RESET}\n")
 
 def main():
@@ -126,20 +126,23 @@ def main():
     # 8. Интеграция нашего интерфейса Citadel OS в качестве главного шелла
     print(f"\n{CYAN}[ ШАГ 8 ]: Интеграция интерфейса оболочки Citadel...{RESET}")
     
-    # Создаем папку под нашу систему внутри установленного диска
+    # Создаем папку под нашу систему внутри установленного диска.
+    # Production-путь: /opt/citadel/ (жёстко зашит — под root'ом).
     target_os_dir = "/mnt/opt/citadel"
     run_cmd(f"mkdir -p {target_os_dir}")
-    
-    # Копируем наши файлы проекта (main.py, config.py, logo.txt и папки core/system/apps)
-    # Предполагается, что установщик запущен из папки, где лежат эти файлы
+
+    # Копируем наши файлы проекта (main.py, config.py, logo.txt и папки core/system/apps).
+    # Предполагается, что установщик запущен из папки, где лежат эти файлы.
+    # В Live-CD пути абсолютные.
     run_cmd(f"cp -r main.py config.py logo.txt core system apps {target_os_dir}/ 2>/dev/null")
     
-    # Прописываем автозапуск нашего Python-шелла при входе в систему вместо стандартного bash
+    # Прописываем автозапуск нашего Python-шелла при входе в систему вместо стандартного bash.
+    # В production /opt/citadel/main.py — абсолютный путь, python3 — в /usr/bin/.
     bashprofile_path = "/mnt/root/.bash_profile"
     autorun_code = f"""
-    # Автозапуск интерфейса Citadel OS
+    # Автозапуск интерфейса Citadel OS v1.0 (Core 3.0)
     if [ -f /opt/citadel/main.py ]; then
-        python /opt/citadel/main.py
+        exec /usr/bin/python3 /opt/citadel/main.py
         # Если пользователь выходит из нашего шелла — завершаем и саму сессию терминала
         exit
     fi

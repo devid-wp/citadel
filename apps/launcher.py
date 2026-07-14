@@ -4,7 +4,6 @@ import time
 import config
 from core.interface import clear_screen, terminal_print, get_theme_color
 from core.theme_state import get_theme_state
-
 def run_command_launcher():
     """Модуль быстрого запуска приложений"""
     is_win = os.name == 'nt'
@@ -62,8 +61,9 @@ def run_command_launcher():
                 if is_win:
                     subprocess.Popen("taskmgr", shell=True)
                 else:
-                    # Запуск htop в интерактивном режиме
-                    os.system("htop")
+                    # Запуск /usr/bin/htop в интерактивном режиме
+                    htop = getattr(config, "TOOL_HTOP", "/usr/bin/htop")
+                    os.system(htop)
                 time.sleep(1)
             else:
                 print("\nНеверный выбор. Попробуйте еще раз.")

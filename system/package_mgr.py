@@ -5,7 +5,11 @@ import subprocess
 import config
 from core.interface import clear_screen, terminal_print, display_progress_bar, display_table, get_theme_color
 
-MOCK_DB_PATH = "system/packages_db.json"
+# Mock-DB. В production — /root/.config/citadel/packages_db.json, в dev — system/packages_db.json.
+MOCK_DB_PATH = os.path.join(
+    getattr(config, "CITADEL_CONFIG_DIR", "system"),
+    "packages_db.json",
+)
 
 # Базовые демо-пакеты для Windows/симуляции
 DEFAULT_MOCK_REPO = {
@@ -58,6 +62,7 @@ def run_package_manager(args):
     
     # Режим реальной работы на Arch Linux
     is_linux = os.name != 'nt' and os.path.exists("/usr/bin/pacman")
+    pacman = getattr(config, "TOOL_PACMAN", "/usr/bin/pacman")
     
     if is_linux:
         if sub_cmd == 'install':
@@ -65,28 +70,28 @@ def run_package_manager(args):
                 print("Укажите имя пакета для установки.\n")
                 return
             pkg_name = args[1]
-            print(f"Вызов менеджера пакетов Arch (sudo pacman -S)...")
-            os.system(f"sudo pacman -S {pkg_name}")
+            print(f"Вызов менеджера пакетов Arch (sudo {pacman} -S)...")
+            os.system(f"sudo {pacman} -S {pkg_name}")
         elif sub_cmd == 'remove':
             if len(args) < 2:
                 print("Укажите имя пакета для удаления.\n")
                 return
             pkg_name = args[1]
-            print(f"Вызов менеджера пакетов Arch (sudo pacman -R)...")
-            os.system(f"sudo pacman -R {pkg_name}")
+            print(f"Вызов менеджера пакетов Arch (sudo {pacman} -R)...")
+            os.system(f"sudo {pacman} -R {pkg_name}")
         elif sub_cmd == 'search':
             if len(args) < 2:
                 print("Укажите поисковый запрос.\n")
                 return
             query = args[1]
             print(f"Поиск пакета в базе pacman...")
-            os.system(f"pacman -Ss {query}")
+            os.system(f"{pacman} -Ss {query}")
         elif sub_cmd == 'list':
-            print("Установленные в системе пакеты (pacman -Q):")
-            os.system("pacman -Q")
+            print(f"Установленные в системе пакеты ({pacman} -Q):")
+            os.system(f"{pacman} -Q")
         elif sub_cmd == 'update':
             print("Запуск полного обновления Arch Linux...")
-            os.system("sudo pacman -Syu")
+            os.system(f"sudo {pacman} -Syu")
         else:
             print(f"{red}Неизвестная команда pkg: {sub_cmd}{reset}")
     else:
