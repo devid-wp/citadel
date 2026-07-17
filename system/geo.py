@@ -128,9 +128,9 @@ def get_location(force_refresh: bool = False) -> Optional[dict]:
 
 
 def format_location(loc: dict) -> str:
-    """Отформатировать локацию для красивого вывода в терминале."""
+    """Format a location dict for pretty terminal output."""
     if not loc:
-        return "Локация не определена"
+        return "Location not determined"
 
     city = loc.get("city") or "—"
     region = loc.get("region") or ""
@@ -148,9 +148,9 @@ def format_location(loc: dict) -> str:
 
     return (
         f"IP: {ip}\n"
-        f"Место: {place}\n"
-        f"Часовой пояс: {tz}\n"
-        f"Провайдер: {org}\n"
-        f"Координаты: {loc.get('lat'):.4f}, {loc.get('lon'):.4f}\n"
-        f"Источник: {src}"
+        f"Place: {place}\n"
+        f"Timezone: {tz}\n"
+        f"Provider: {org}\n"
+        f"Coordinates: {loc.get('lat'):.4f}, {loc.get('lon'):.4f}\n"
+        f"Source: {src}"
     )

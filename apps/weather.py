@@ -1,14 +1,14 @@
 """
-Модуль погоды для Citadel OS.
+Weather module for Citadel OS.
 
-Получает текущую погоду и прогноз на несколько дней через Open-Meteo
-(https://open-meteo.com) — бесплатный API без ключа.
+Fetches the current weather and a multi-day forecast from Open-Meteo
+(https://open-meteo.com) — a free, no-key API.
 
-Особенности:
-  - Локация определяется автоматически по IP через system.geo.
-  - Если автоматически определить не удалось — запрашивает у пользователя город/координаты.
-  - Поддерживается поиск по названию города через Open-Meteo Geocoding API.
-  - Погода выводится в удобной таблице с эмодзи-иконками по WMO-коду.
+Features:
+  - Automatic location detection by IP via system.geo.
+  - If automatic detection fails — prompts the user for a city / coordinates.
+  - City search by name via the Open-Meteo Geocoding API.
+  - Weather is rendered as a tidy table with emoji icons by WMO code.
 """
 import json
 import os
@@ -27,47 +27,47 @@ USER_AGENT = "CitadelOS/3.0 (weather)"
 HTTP_TIMEOUT = 5.0
 
 
-# === WMO Weather Code → русское описание + иконка ===
-# Коды стандартизованы WMO, используются в Open-Meteo.
+# === WMO Weather Code → English description + icon ===
+# Codes are standardized by the WMO and used by Open-Meteo.
 WMO_CODES = {
-    0:  ("Ясно",                "☀️"),
-    1:  ("Преимущественно ясно","🌤️"),
-    2:  ("Переменная облачность","⛅"),
-    3:  ("Пасмурно",            "☁️"),
-    45: ("Туман",               "🌫️"),
-    48: ("Изморозь",            "🌫️"),
-    51: ("Лёгкая морось",       "🌦️"),
-    53: ("Умеренная морось",    "🌦️"),
-    55: ("Сильная морось",      "🌧️"),
-    56: ("Ледяная морось",      "🌧️"),
-    57: ("Сильная ледяная морось","🌧️"),
-    61: ("Слабый дождь",        "🌦️"),
-    63: ("Умеренный дождь",     "🌧️"),
-    65: ("Сильный дождь",       "🌧️"),
-    66: ("Ледяной дождь",       "🌧️"),
-    67: ("Сильный ледяной дождь","🌧️"),
-    71: ("Слабый снег",         "🌨️"),
-    73: ("Умеренный снег",      "❄️"),
-    75: ("Сильный снег",        "❄️"),
-    77: ("Снежные зёрна",       "❄️"),
-    80: ("Слабый ливень",       "🌦️"),
-    81: ("Умеренный ливень",    "🌧️"),
-    82: ("Сильный ливень",      "⛈️"),
-    85: ("Снегопад",            "🌨️"),
-    86: ("Сильный снегопад",    "❄️"),
-    95: ("Гроза",               "⛈️"),
-    96: ("Гроза с градом",      "⛈️"),
-    99: ("Сильная гроза с градом","⛈️"),
+    0:  ("Clear sky",                "☀️"),
+    1:  ("Mainly clear",             "🌤️"),
+    2:  ("Partly cloudy",            "⛅"),
+    3:  ("Overcast",                 "☁️"),
+    45: ("Fog",                      "🌫️"),
+    48: ("Depositing rime fog",      "🌫️"),
+    51: ("Light drizzle",            "🌦️"),
+    53: ("Moderate drizzle",         "🌦️"),
+    55: ("Dense drizzle",            "🌧️"),
+    56: ("Light freezing drizzle",   "🌧️"),
+    57: ("Dense freezing drizzle",   "🌧️"),
+    61: ("Light rain",               "🌦️"),
+    63: ("Moderate rain",            "🌧️"),
+    65: ("Heavy rain",               "🌧️"),
+    66: ("Light freezing rain",      "🌧️"),
+    67: ("Heavy freezing rain",      "🌧️"),
+    71: ("Light snow",               "🌨️"),
+    73: ("Moderate snow",            "❄️"),
+    75: ("Heavy snow",               "❄️"),
+    77: ("Snow grains",              "❄️"),
+    80: ("Light rain showers",       "🌦️"),
+    81: ("Moderate rain showers",    "🌧️"),
+    82: ("Violent rain showers",     "⛈️"),
+    85: ("Snow showers",             "🌨️"),
+    86: ("Heavy snow showers",       "❄️"),
+    95: ("Thunderstorm",             "⛈️"),
+    96: ("Thunderstorm with hail",   "⛈️"),
+    99: ("Severe thunderstorm with hail", "⛈️"),
 }
 
 
 def describe_wmo(code: int) -> tuple[str, str]:
-    """Вернуть (описание, иконка) по WMO-коду."""
-    return WMO_CODES.get(int(code), ("Неизвестно", "❓"))
+    """Return (description, icon) for a WMO code."""
+    return WMO_CODES.get(int(code), ("Unknown", "❓"))
 
 
 def _http_get_json(url: str) -> dict | None:
-    """GET → JSON, безопасный. None при любой ошибке."""
+    """Safe GET → JSON. Returns None on any error."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
@@ -77,14 +77,14 @@ def _http_get_json(url: str) -> dict | None:
 
 
 def geocode_city(name: str) -> dict | None:
-    """Найти координаты по названию города (Open-Meteo Geocoding)."""
+    """Look up coordinates by city name (Open-Meteo Geocoding)."""
     name = (name or "").strip()
     if not name:
         return None
     url = "https://geocoding-api.open-meteo.com/v1/search?" + urllib.parse.urlencode({
         "name": name,
         "count": 1,
-        "language": "ru",
+        "language": "en",
         "format": "json",
     })
     data = _http_get_json(url)
@@ -102,8 +102,8 @@ def geocode_city(name: str) -> dict | None:
 
 def fetch_weather(lat: float, lon: float) -> dict | None:
     """
-    Получить текущую погоду + прогноз на 3 дня.
-    Open-Meteo: возвращает hourly и daily массивы в одном запросе.
+    Fetch the current weather + 3-day forecast.
+    Open-Meteo: returns hourly and daily arrays in a single request.
     """
     params = {
         "latitude": f"{lat:.4f}",
@@ -119,18 +119,18 @@ def fetch_weather(lat: float, lon: float) -> dict | None:
 
 
 def _wind_direction(deg: float) -> str:
-    """Преобразовать градусы в буквенное направление (С, СВ, В, ...)."""
+    """Convert a degree value to a cardinal direction letter (N, NE, E, ...)."""
     try:
         deg = float(deg)
     except (TypeError, ValueError):
         return "—"
-    dirs = ["С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"]
+    dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     ix = int((deg + 22.5) // 45) % 8
     return dirs[ix]
 
 
 def render_current(weather: dict, place: str) -> str:
-    """Отформатировать блок 'Сейчас'."""
+    """Format the 'Now' block."""
     cur = weather.get("current") or {}
     code = int(cur.get("weather_code") or 0)
     desc, icon = describe_wmo(code)
@@ -151,15 +151,15 @@ def render_current(weather: dict, place: str) -> str:
     return (
         f"📍 {place}\n"
         f"{icon} {desc}\n"
-        f"Температура: {fmt(temp)}°C (ощущается {fmt(feels)}°C)\n"
-        f"Влажность: {fmt(humid)}%\n"
-        f"Ветер: {fmt(wind)} км/ч {_wind_direction(wdir)}\n"
-        f"Давление: {fmt(pressure)} гПа"
+        f"Temperature: {fmt(temp)}°C (feels like {fmt(feels)}°C)\n"
+        f"Humidity: {fmt(humid)}%\n"
+        f"Wind: {fmt(wind)} km/h {_wind_direction(wdir)}\n"
+        f"Pressure: {fmt(pressure)} hPa"
     )
 
 
 def render_daily(weather: dict) -> list[list[str]]:
-    """Сформировать строки таблицы прогноза на N дней."""
+    """Build rows for the N-day forecast table."""
     daily = weather.get("daily") or {}
     dates = daily.get("time") or []
     codes = daily.get("weather_code") or []
@@ -186,14 +186,14 @@ def render_daily(weather: dict) -> list[list[str]]:
             date_str,
             f"{icon} {desc}",
             f"{f(tmin, i)} … {f(tmax, i)}°C",
-            f"{f(pop, i)} мм",
-            f"{f(wind, i)} км/ч",
+            f"{f(pop, i)} mm",
+            f"{f(wind, i)} km/h",
         ])
     return rows
 
 
 def render_hourly_today(weather: dict) -> list[list[str]]:
-    """Сформировать строки таблицы почасового прогноза на сегодня (каждые 3 часа)."""
+    """Build rows for today's hourly forecast (every 3 hours)."""
     hourly = weather.get("hourly") or {}
     times = hourly.get("time") or []
     codes = hourly.get("weather_code") or []
@@ -225,23 +225,23 @@ def render_hourly_today(weather: dict) -> list[list[str]]:
 
 
 def run_weather_app():
-    """Главная точка входа модуля погоды."""
+    """Main entry point of the weather module."""
     clear_screen()
     theme_color = get_theme_color()
     palette = get_theme_state().current_palette
     reset = palette.reset
-    accent = palette.accent  # в DAY/EVENING=YELLOW, в NIGHT=RED
+    accent = palette.accent  # in DAY/EVENING=YELLOW, in NIGHT=RED
 
     print(f"{theme_color}=========================================")
     print("         CITADEL WEATHER ENGINE        ")
     print(f"========================================={reset}\n")
 
-    print(f"{accent}[1]{reset} Автоматически определить моё местоположение по IP")
-    print(f"{accent}[2]{reset} Ввести координаты вручную (lat, lon)")
-    print(f"{accent}[3]{reset} Найти город по названию")
-    print(f"{accent}[B]{reset} Назад")
+    print(f"{accent}[1]{reset} Detect my location automatically by IP")
+    print(f"{accent}[2]{reset} Enter coordinates manually (lat, lon)")
+    print(f"{accent}[3]{reset} Find a city by name")
+    print(f"{accent}[B]{reset} Back")
 
-    choice = input("\nВыберите режим: ").strip().lower()
+    choice = input("\nSelect a mode: ").strip().lower()
 
     lat = lon = None
     place = ""
@@ -249,63 +249,63 @@ def run_weather_app():
     if choice == "b":
         return
     elif choice == "1":
-        terminal_print("[ INFO ]: Определяю ваш публичный IP-адрес...", color_code=accent)
+        terminal_print("[ INFO ]: Detecting your public IP address...", color_code=accent)
         loc = get_location(force_refresh=True)
         if not loc:
-            print(f"\n{accent}[ ERROR ]: Не удалось определить локацию. Проверьте интернет-соединение или введите данные вручную.{reset}")
-            input("\nНажмите Enter для возврата...")
+            print(f"\n{accent}[ ERROR ]: Could not determine location. Check your internet connection or enter data manually.{reset}")
+            input("\nPress Enter to return...")
             return
         lat, lon = loc["lat"], loc["lon"]
-        place = ", ".join(filter(None, [loc.get("city"), loc.get("country")])) or "ваше местоположение"
-        print(f"\n{accent}[ OK ]{reset}  Локация определена:")
+        place = ", ".join(filter(None, [loc.get("city"), loc.get("country")])) or "your location"
+        print(f"\n{accent}[ OK ]{reset}  Location detected:")
         print(format_location(loc))
     elif choice == "2":
         try:
-            lat = float(input("Широта (lat): ").strip().replace(",", "."))
-            lon = float(input("Долгота (lon): ").strip().replace(",", "."))
+            lat = float(input("Latitude (lat): ").strip().replace(",", "."))
+            lon = float(input("Longitude (lon): ").strip().replace(",", "."))
             place = f"{lat:.4f}, {lon:.4f}"
         except ValueError:
-            print(f"\n{accent}[ ERROR ]: Некорректные координаты.{reset}")
-            input("\nНажмите Enter для возврата...")
+            print(f"\n{accent}[ ERROR ]: Invalid coordinates.{reset}")
+            input("\nPress Enter to return...")
             return
     elif choice == "3":
-        name = input("Введите название города (например, Москва): ").strip()
-        terminal_print(f"[ INFO ]: Ищу '{name}'...", color_code=accent)
+        name = input("Enter city name (e.g. London): ").strip()
+        terminal_print(f"[ INFO ]: Looking up '{name}'...", color_code=accent)
         g = geocode_city(name)
         if not g:
-            print(f"\n{accent}[ ERROR ]: Город '{name}' не найден.{reset}")
-            input("\nНажмите Enter для возврата...")
+            print(f"\n{accent}[ ERROR ]: City '{name}' not found.{reset}")
+            input("\nPress Enter to return...")
             return
         lat, lon = g["lat"], g["lon"]
         place = ", ".join(filter(None, [g.get("name"), g.get("admin1"), g.get("country")]))
     else:
         return
 
-    print(f"\n{accent}[ INFO ]{reset}: Запрашиваю прогноз для {place}...")
+    print(f"\n{accent}[ INFO ]{reset}: Requesting forecast for {place}...")
     weather = fetch_weather(lat, lon)
     if not weather:
-        print(f"\n{accent}[ ERROR ]: Не удалось получить погоду. Сервис недоступен.{reset}")
-        input("\nНажмите Enter для возврата...")
+        print(f"\n{accent}[ ERROR ]: Failed to retrieve weather. The service is unavailable.{reset}")
+        input("\nPress Enter to return...")
         return
 
     clear_screen()
     print(f"{theme_color}=========================================")
-    print("         CITADEL WEATHER — СВОДКА        ")
+    print("         CITADEL WEATHER — OVERVIEW        ")
     print(f"========================================={reset}\n")
 
     terminal_print(render_current(weather, place), color_code=accent, delay=0.001)
 
-    # Почасовой прогноз на сегодня
+    # Hourly forecast for today
     hourly_rows = render_hourly_today(weather)
     if hourly_rows:
-        print(f"\n{theme_color}--- ПОЧАСОВОЙ ПРОГНОЗ (СЕГОДНЯ) ---{reset}")
-        display_table(["Время", "Погода", "Темп.", "Вер. осадков"], hourly_rows)
+        print(f"\n{theme_color}--- HOURLY FORECAST (TODAY) ---{reset}")
+        display_table(["Time", "Weather", "Temp.", "Precip. prob."], hourly_rows)
 
-    # Прогноз на 3 дня
+    # 3-day forecast
     daily_rows = render_daily(weather)
     if daily_rows:
-        print(f"\n{theme_color}--- ПРОГНОЗ НА 3 ДНЯ ---{reset}")
-        display_table(["Дата", "Погода", "Температура", "Осадки", "Ветер"], daily_rows)
+        print(f"\n{theme_color}--- 3-DAY FORECAST ---{reset}")
+        display_table(["Date", "Weather", "Temperature", "Precip.", "Wind"], daily_rows)
 
     print()
-    input("Нажмите Enter для возврата...")
+    input("Press Enter to return...")

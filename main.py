@@ -1,21 +1,21 @@
 """
 Citadel Shell — main entry point (v1.0, Core 3.0).
 
-Структура:
-  1. login_screen()                  — pre-REPL аутентификация.
-  2. EnvAwarenessModule              — адаптивная тема (HUD).
-  3. install_completer()             — Tab-дополнение.
-  4. main_handlers.register_all()    — кастомные builtin'ы.
+Structure:
+  1. login_screen()                  — pre-REPL authentication.
+  2. EnvAwarenessModule              — adaptive theme (HUD).
+  3. install_completer()             — Tab completion.
+  4. main_handlers.register_all()    — custom builtins.
   5. core.repl._register_default_builtins() — help/clear/exit/q/quit/fetch/jkill.
-  6. REPL-цикл:
+  6. REPL loop:
         while True:
             user_input = input(prompt)
-            rc = run_command(user_input)   # ← единая точка входа
-            if rc == -1: break             # ← sentinel от exit/q/quit
-  7. atexit + sys.excepthook          — снапшот в ~/.citadel_recovery/ при крахе.
+            rc = run_command(user_input)   # ← single entry point
+            if rc == -1: break             # ← sentinel from exit/q/quit
+  7. atexit + sys.excepthook          — snapshot to ~/.citadel_recovery/ on crash.
 
-Вся кастомная логика команд (help, fetch, clear, center, pkg, ...) переехала
-в main_handlers.py — здесь только bootstrap и цикл.
+All custom command logic (help, fetch, clear, center, pkg, ...) has moved
+to main_handlers.py — only bootstrap and the loop live here.
 """
 from __future__ import annotations
 from core.executor import run_command
@@ -45,20 +45,20 @@ from core.theme_state import get_theme_state
 from core.interface import get_registry
 from modules.env_awareness_module import EnvAwarenessModule
 
-# Кастомные builtin'ы Citadel. Регистрируются ПОСЛЕ дефолтных, чтобы
-# перезатереть help/clear/fetch расширенными версиями из main_handlers.
+# Custom Citadel builtins. Registered AFTER the defaults so that
+# help/clear/fetch are overridden by the extended versions from main_handlers.
 import core.shell_utils as _shell_utils
 from main_handlers import register_all as _register_main_handlers, CMD_HISTORY
 
 
 def main() -> None:
-    # 1. Авторизация
+    # 1. Authentication
     login_screen()
     log_security("User logged in successfully")
 
-    # 2. EnvAwarenessModule — daemon-поток, обновляет тему по времени суток.
-    #    Делаем ДО display_fastfetch(), чтобы первая отрисовка учитывала
-    #    актуальную палитру. stop_all() вызывается в финализаторе.
+    # 2. EnvAwarenessModule — daemon thread, updates theme based on time of day.
+    #    Done BEFORE display_fastfetch() so the first render uses the
+    #    actual palette. stop_all() is called in the finalizer.
     registry = get_registry()
     env_module = EnvAwarenessModule()
     registry.register(env_module)
@@ -68,40 +68,41 @@ def main() -> None:
         f"{get_theme_state().current_theme.value}"
     )
 
-    # 3. Tab-дополнение
+    # 3. Tab completion
     install_completer()
 
-    # 4. Регистрация builtin'ов.
+    # 4. Registering builtins.
     #    4a) core/repl._register_default_builtins() — help/clear/exit/q/quit/fetch/jkill.
-    #    4b) main_handlers.register_all()           — расширенные Citadel-команды
-    #        (перезатирает help/clear/fetch; exit/q/quit не трогает).
+    #    4b) main_handlers.register_all()           — extended Citadel commands
+    #        (overrides help/clear/fetch; exit/q/quit left untouched).
     _register_default_builtins()
     _register_main_handlers(_shell_utils)
 
     # 4c. HistoryBridge — readline <-> HistoryManager.
-    #     Нам нужен, чтобы:
-    #       • ↑/↓ работали в интерактивной сессии (readline-буфер);
-    #       • ~/.citadel_history персистился через HistoryManager.finish() →
-    #         JSONL append (см. core/shell_history.py:_append_to_disk);
-    #       • на exit/Ctrl-D/EofError — bridge.close() делает fsync +
-    #         write_history_file для readline-буфера.
+    #     We need it to:
+    #       • make ↑/↓ work in the interactive session (readline buffer);
+    #       • persist ~/.citadel_history via HistoryManager.finish() →
+    #         JSONL append (see core/shell_history.py:_append_to_disk);
+    #       • on exit/Ctrl-D/EofError — bridge.close() does fsync +
+    #         write_history_file for the readline buffer.
     bridge = HistoryBridge()
     bridge.setup_readline()
 
-    # 4d. Recovery-хуки (Фаза 2.5):
-    #       • atexit — снапшот при ЛЮБОМ нормальном выходе (exit / return /
-    #         Ctrl-D / необработанное исключение, не пойманное try/except);
-    #       • sys.excepthook — снапшот при непойманном исключении в основном
-    #         потоке (типичный crash REPL'а).
-    # install_recovery_hooks() возвращает setter для cwd/истории, чтобы
-    # обновлять их по ходу сессии.
+    # 4d. Recovery hooks (Phase 2.5):
+    #       • atexit — snapshot on ANY normal exit (exit / return /
+    #         Ctrl-D / unhandled exception not caught by try/except);
+    #       • sys.excepthook — snapshot on an uncaught exception in the
+    #         main thread (typical REPL crash).
+    # install_recovery_hooks() returns a setter for cwd/history so we
+    # can update them throughout the session.
     set_session_state = install_recovery_hooks(
         initial_cwd=os.getcwd(),
         recent_cmds=[],
     )
-    # Гарантируем снапшот и при штатном выходе (exit/q/quit) — дополнительно
-    # к excepthook. atexit НЕ срабатывает на SIGKILL/SIGTERM, но срабатывает
-    # на sys.exit(), KeyboardInterrupt после основного try, и нормальном return.
+    # Make sure a snapshot also happens on a clean exit (exit/q/quit) — in
+    # addition to excepthook. atexit does NOT fire on SIGKILL/SIGTERM,
+    # but it does fire on sys.exit(), KeyboardInterrupt after the main
+    # try, and a normal return.
     atexit.register(
         snapshot_session,
         reason=REASON_EXIT,
@@ -109,7 +110,7 @@ def main() -> None:
         recent_cmds_provider=lambda: list(CMD_HISTORY)[-20:],
     )
 
-    # 5. Баннер и fastfetch
+    # 5. Banner and fastfetch
     specs = get_system_specs()
     clear_screen()
     display_fastfetch(specs)
@@ -124,23 +125,23 @@ def main() -> None:
     red = config.COLORS["RED"]
     yellow = config.COLORS["YELLOW"]
 
-    print(f"Citadel Shell v{config.VERSION} успешно запущена поверх "
+    print(f"Citadel Shell v{config.VERSION} started successfully on top of "
           f"{sys.platform.capitalize()} Kernel.")
-    print(f"Введите {cyan}'help'{reset} для вывода списка расширенных утилит.")
-    print(f"Используйте {cyan}Tab{reset} для автодополнения команд и "
-          f"стрелки {cyan}↑/↓{reset} для истории.\n")
+    print(f"Type {cyan}'help'{reset} to list extended utilities.")
+    print(f"Use {cyan}Tab{reset} for command autocompletion and "
+          f"the {cyan}↑/↓{reset} arrows for history.\n")
 
-    # Приветствие с геолокацией (best-effort, без падения при отсутствии сети).
+    # Greeting with geolocation (best-effort, no failure if no network).
     try:
         loc = get_location()
         if loc:
             print(f"{yellow}[ GEO ]{reset}: {loc.get('city', '—')}, "
                   f"{loc.get('country', '—')} ({loc.get('ip', '—')})  "
-                  f"→ введите {cyan}'weather'{reset} для прогноза.\n")
+                  f"→ type {cyan}'weather'{reset} for the forecast.\n")
     except Exception:  # noqa: BLE001
         pass
 
-    # 6. REPL-цикл. Вся диспетчеризация команд — в run_command().
+    # 6. REPL loop. All command dispatch lives in run_command().
     while True:
         current_dir = os.getcwd()
         user_name = getattr(config, 'USER_NAME', 'User')
@@ -149,18 +150,18 @@ def main() -> None:
         try:
             user_input = input(prompt).strip()
         except KeyboardInterrupt:
-            print("\nИспользуйте 'exit' или 'q' для выхода.")
+            print("\nUse 'exit' or 'q' to quit.")
             continue
         except EOFError:
-            # Ctrl-D / конец pipe. Завершаем штатно: bridge.close() сохранит
-            # историю, atexit-хук сделает снапшот сессии.
+            # Ctrl-D / end of pipe. Finish cleanly: bridge.close() will
+            # save history, and the atexit hook will snapshot the session.
             print()
             break
 
         if not user_input:
             continue
 
-        # Аудит: пишем в журнал + legacy-список для cmd_history.
+        # Audit: write to the log + legacy list for cmd_history.
         log_command(user_input)
         CMD_HISTORY.append(user_input)
         set_session_state(
@@ -168,33 +169,33 @@ def main() -> None:
             recent_cmds=list(CMD_HISTORY)[-20:],
         )
 
-        # HistoryBridge: каждая команда оборачивается в begin/finish.
-        # finish() пишет JSONL-строку в ~/.citadel_history сразу после
-        # завершения команды (см. core/shell_history.py:_append_to_disk).
-        # Это значит, что история НЕ теряется даже при kill -9 в середине
-        # сессии — последняя записанная команда уже на диске.
+        # HistoryBridge: every command is wrapped in begin/finish.
+        # finish() writes a JSONL line to ~/.citadel_history right after
+        # the command completes (see core/shell_history.py:_append_to_disk).
+        # This means history is NOT lost even on kill -9 in the middle
+        # of a session — the last written command is already on disk.
         handle = bridge.history.begin(user_input)
         try:
             rc = run_command(user_input)
         except Exception as e:  # noqa: BLE001
-            print(f"{config.COLORS['RED']}Ошибка выполнения:{config.COLORS['RESET']} {e}\n")
+            print(f"{config.COLORS['RED']}Execution error:{config.COLORS['RESET']} {e}\n")
             rc = 1
         finally:
             bridge.history.finish(handle, exit_code=rc)
         bridge.add_readline(user_input)
 
-        # Sentinel -1: выход (выставлен exit/q/quit через core/repl._register_default_builtins).
+        # Sentinel -1: exit (set by exit/q/quit through core/repl._register_default_builtins).
         if rc == -1:
             log_security("User exited Citadel Shell")
             clear_screen()
             terminal_print(
-                "Выгрузка Citadel Shell. Отключение терминала...",
+                "Shutting down Citadel Shell. Disconnecting terminal...",
                 color_code=config.COLORS["RED"],
             )
             break
 
-    # 7. Graceful shutdown. Сохраняем readline-буфер в файл и делаем
-    #    fsync на JSONL-историю (на случай kill -9 сразу после return).
+    # 7. Graceful shutdown. Save the readline buffer to file and fsync
+    #    the JSONL history (in case of kill -9 right after return).
     try:
         bridge.close()
     except Exception:  # noqa: BLE001
@@ -205,26 +206,26 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        # Ctrl-C в самом начале (до login / до REPL) — корректный выход
-        # с recovery-снапшотом.
-        print("\n[ EXIT ]: Принудительное завершение.")
+        # Ctrl-C right at the start (before login / before REPL) — clean
+        # exit with a recovery snapshot.
+        print("\n[ EXIT ]: Forced termination.")
         try:
             snapshot_session(
-                reason=REASON_INTERRUPT,
+                reason=REASON_INTERUKPT,
                 cwd=os.getcwd(),
                 recent_cmds_provider=lambda: list(CMD_HISTORY)[-20:],
             )
         except Exception:  # noqa: BLE001
             pass
     except SystemExit:
-        # sys.exit() из login_screen при провале auth. Пробрасываем дальше,
-        # но atexit всё равно отработает.
+        # sys.exit() from login_screen on auth failure. Re-raise, but
+        # atexit will still run.
         raise
     except Exception as e:  # noqa: BLE001
-        # Необработанное исключение в main(). sys.excepthook его уже
-        # залогировал и сделал снапшот; тут просто печатаем traceback
-        # в stderr для пользователя (если excepthook ещё не отработал —
-        # например, в тестах без перехвата).
+        # Unhandled exception in main(). sys.excepthook has already
+        # logged it and taken a snapshot; here we just print the traceback
+        # to stderr for the user (in case excepthook didn't run yet —
+        # e.g. in tests without interception).
         traceback.print_exc()
         try:
             snapshot_session(
@@ -235,10 +236,10 @@ if __name__ == "__main__":
         except Exception:  # noqa: BLE001
             pass
     finally:
-        # Корректная остановка HUD-модулей. На случай, если процесс
-        # прерывается до завершения main() (Ctrl-C в начале сессии) —
-        # get_registry() всё равно вернёт singleton с зарегистрированными
-        # модулями.
+        # Properly stop HUD modules. In case the process is interrupted
+        # before main() finishes (Ctrl-C at the very start of the
+        # session), get_registry() still returns the singleton with
+        # registered modules.
         try:
             get_registry().stop_all()
         except Exception:  # noqa: BLE001

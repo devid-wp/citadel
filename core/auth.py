@@ -93,10 +93,10 @@ def change_password(old_password: str, new_password: str):
     Возвращает (success, message).
     """
     if not verify_password(old_password):
-        return False, "Неверный текущий пароль"
+        return False, "Invalid current password"
 
     if not new_password or len(new_password) < 4:
-        return False, "Новый пароль должен содержать минимум 4 символа"
+        return False, "New password must contain at least 4 characters"
 
     new_hash = hash_password(new_password)
     # В production — /opt/citadel/config.py, в dev — <repo>/config.py.
@@ -123,9 +123,9 @@ def change_password(old_password: str, new_password: str):
             f.writelines(new_lines)
 
         config.PASSWORD_HASH = new_hash
-        return True, "Пароль успешно изменен"
+        return True, "Password successfully changed"
     except Exception as e:
-        return False, f"Ошибка записи в файл конфигурации: {e}"
+        return False, f"Error writing to config file: {e}"
 
 
 def login_screen():
@@ -137,7 +137,7 @@ def login_screen():
     green = config.COLORS["GREEN"]
 
     print(f"{theme_color}##################################################")
-    print("         CITADEL OS - СИСТЕМА АВТОРИЗАЦИИ         ")
+    print("         CITADEL OS - AUTHORIZATION SYSTEM         ")
     print(f"##################################################{reset}\n")
 
     # Предупреждение, если пароль ещё в legacy MD5-формате
@@ -145,30 +145,30 @@ def login_screen():
     if stored.startswith(HASH_PREFIX_MD5) or (stored and not stored.startswith("$") and not stored.startswith("bcrypt")):
         # Голый MD5 без префикса
         if not stored.startswith("bcrypt$") and not stored.startswith("pbkdf2$"):
-            print(f"{config.COLORS['YELLOW']}[ INFO ]: Используется устаревший формат хранения пароля. Рекомендуется сменить пароль.{reset}\n")
+            print(f"{config.COLORS['YELLOW']}[ INFO ]: Legacy password storage format in use. It is recommended to change the password.{reset}\n")
 
     attempts = 3
     while attempts > 0:
         try:
-            sys.stdout.write(f"Введите пароль для {config.USER_NAME} (осталось попыток: {attempts}): ")
+            sys.stdout.write(f"Enter password for {config.USER_NAME} (attempts remaining: {attempts}): ")
             sys.stdout.flush()
             # getpass скрывает ввод от посторонних глаз
             password = getpass.getpass("").strip()
         except (KeyboardInterrupt, EOFError):
-            print("\nАвторизация прервана.")
+            print("\nAuthorization interrupted.")
             sys.exit(1)
 
         if verify_password(password):
-            terminal_print("\n[ SUCCESS ]: Авторизация пройдена успешно!", color_code=green)
+            terminal_print("\n[ SUCCESS ]: Authorization successful!", color_code=green)
             time.sleep(0.5)
             return True
 
         attempts -= 1
         # Экспоненциальная задержка — замедляет brute-force
         delay = 1.0 * (2 ** (3 - attempts))  # 2, 4, 8 секунд
-        print(f"{red}[ ERROR ]: Неверный пароль.{reset}")
+        print(f"{red}[ ERROR ]: Invalid password.{reset}")
         if attempts > 0:
             time.sleep(delay)
 
-    print(f"{red}[ CRITICAL ]: Превышено количество попыток входа. Система заблокирована.{reset}")
+    print(f"{red}[ CRITICAL ]: Maximum login attempts exceeded. System is locked.{reset}")
     sys.exit(1)

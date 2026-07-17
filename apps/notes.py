@@ -8,9 +8,9 @@ from rendering.draw_utils import styled_print
 NOTES_DIR = getattr(config, "CITADEL_NOTES_DIR", "system/notes")
 
 def run_notes_app():
-    """Простое консольное приложение заметок для Citadel OS"""
+    """Simple console notes app for Citadel OS."""
     os.makedirs(NOTES_DIR, exist_ok=True)
-    
+
     while True:
         clear_screen()
         theme_color = get_theme_color()
@@ -20,123 +20,123 @@ def run_notes_app():
 
 
         print(f"{theme_color}=========================================")
-        print("          БЛОКНОТ CITADEL NOTES          ")
+        print("          CITADEL NOTES NOTEBOOK          ")
         print(f"========================================={reset}")
-        print("\n[1] Показать список заметок")
-        print("[2] Прочитать заметку")
-        print("[3] Создать новую заметку")
-        print("[4] Удалить заметку")
-        print("[B] Вернуться назад (Back)")
-        
-        choice = input("\nВыберите действие: ").strip().lower()
-        
+        print("\n[1] Show list of notes")
+        print("[2] Read a note")
+        print("[3] Create a new note")
+        print("[4] Delete a note")
+        print("[B] Return to previous menu (Back)")
+
+        choice = input("\nSelect an action: ").strip().lower()
+
         if choice == '1':
             clear_screen()
-            print(f"{theme_color}=== СПИСОК ВАШИХ ЗАМЕТОК ==={reset}\n")
+            print(f"{theme_color}=== LIST OF YOUR NOTES ==={reset}\n")
             try:
                 notes = [f for f in os.listdir(NOTES_DIR) if f.endswith(".txt")]
             except Exception as e:
-                print(f"Ошибка чтения папки заметок: {e}")
+                print(f"Error reading notes folder: {e}")
                 notes = []
-                
+
             if not notes:
-                print("Заметок пока нет. Создайте первую!")
+                print("No notes yet. Create your first one!")
             else:
                 for idx, note in enumerate(notes, 1):
-                    # Показываем имя без расширения
+                    # Show name without the extension
                     print(f"[{idx}] {note[:-4]}")
-            input("\nНажмите Enter для продолжения...")
-            
+            input("\nPress Enter to continue...")
+
         elif choice == '2':
             clear_screen()
             try:
                 notes = [f for f in os.listdir(NOTES_DIR) if f.endswith(".txt")]
             except Exception:
                 notes = []
-                
+
             if not notes:
-                print("У вас нет сохраненных заметок.")
-                input("\nНажмите Enter для продолжения...")
+                print("You have no saved notes.")
+                input("\nPress Enter to continue...")
                 continue
-                
+
             for idx, note in enumerate(notes, 1):
                 print(f"[{idx}] {note[:-4]}")
-                
-            select = input("\nВыберите номер заметки для чтения: ").strip()
+
+            select = input("\nSelect the number of the note to read: ").strip()
             try:
                 num = int(select)
                 if 1 <= num <= len(notes):
                     target_note = notes[num - 1]
                     clear_screen()
-                    print(f"{theme_color}=== ЗАМЕТКА: {target_note[:-4]} ==={reset}\n")
+                    print(f"{theme_color}=== NOTE: {target_note[:-4]} ==={reset}\n")
                     with open(os.path.join(NOTES_DIR, target_note), "r", encoding="utf-8") as f:
                         print(f.read())
                     print(f"\n{theme_color}=================================={reset}")
                 else:
-                    print("Неверный номер.")
+                    print("Invalid number.")
             except ValueError:
-                print("Некорректный ввод.")
-            input("\nНажмите Enter для продолжения...")
-            
+                print("Invalid input.")
+            input("\nPress Enter to continue...")
+
         elif choice == '3':
             clear_screen()
-            print(f"{theme_color}=== СОЗДАНИЕ ЗАМЕТКИ ==={reset}\n")
-            title = input("Введите заголовок заметки: ").strip()
+            print(f"{theme_color}=== CREATE A NOTE ==={reset}\n")
+            title = input("Enter the note title: ").strip()
             if not title:
-                print("Заголовок не может быть пустым.")
-                input("\nНажмите Enter для продолжения...")
+                print("Title must not be empty.")
+                input("\nPress Enter to continue...")
                 continue
-                
-            # Заменяем запрещенные символы в имени файла
+
+            # Strip forbidden characters from the file name
             filename = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).rstrip() + ".txt"
-            
-            print("\nВведите текст заметки (для сохранения введите ':wq' на новой строке и нажмите Enter):\n")
+
+            print("\nEnter the note text (to save, type ':wq' on a new line and press Enter):\n")
             lines = []
             while True:
                 line = input()
                 if line.strip() == ':wq':
                     break
                 lines.append(line)
-                
+
             content = "\n".join(lines)
-            
+
             try:
                 with open(os.path.join(NOTES_DIR, filename), "w", encoding="utf-8") as f:
                     f.write(content)
-                print(f"\n{accent}[ SUCCESS ]: Заметка '{title}' успешно сохранена!{reset}")
+                print(f"\n{accent}[ SUCCESS ]: Note '{title}' saved successfully!{reset}")
             except Exception as e:
-                print(f"\n{accent}[ ERROR ]: Не удалось сохранить заметку: {e}{reset}")
-            input("\nНажмите Enter для продолжения...")
-            
+                print(f"\n{accent}[ ERROR ]: Failed to save note: {e}{reset}")
+            input("\nPress Enter to continue...")
+
         elif choice == '4':
             clear_screen()
             try:
                 notes = [f for f in os.listdir(NOTES_DIR) if f.endswith(".txt")]
             except Exception:
                 notes = []
-                
+
             if not notes:
-                print("У вас нет заметок для удаления.")
-                input("\nНажмите Enter для продолжения...")
+                print("You have no notes to delete.")
+                input("\nPress Enter to continue...")
                 continue
-                
+
             for idx, note in enumerate(notes, 1):
                 print(f"[{idx}] {note[:-4]}")
-                
-            select = input("\nВыберите номер заметки для удаления: ").strip()
+
+            select = input("\nSelect the number of the note to delete: ").strip()
             try:
                 num = int(select)
                 if 1 <= num <= len(notes):
                     target_note = notes[num - 1]
-                    confirm = input(f"{accent}Вы действительно хотите удалить '{target_note[:-4]}'? (y/n): {reset}").strip().lower()
+                    confirm = input(f"{accent}Are you sure you want to delete '{target_note[:-4]}'? (y/n): {reset}").strip().lower()
                     if confirm == 'y':
                         os.remove(os.path.join(NOTES_DIR, target_note))
-                        print(f"{accent}Заметка успешно удалена.{reset}")
+                        print(f"{accent}Note deleted successfully.{reset}")
                 else:
-                    print("Неверный номер.")
+                    print("Invalid number.")
             except ValueError:
-                print("Некорректный ввод.")
-            input("\nНажмите Enter для продолжения...")
-            
+                print("Invalid input.")
+            input("\nPress Enter to continue...")
+
         elif choice == 'b':
             break

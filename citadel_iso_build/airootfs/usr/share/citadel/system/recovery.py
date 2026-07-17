@@ -10,11 +10,11 @@ from typing import Any, Callable, List, Optional
 import config
 from core.interface import clear_screen, terminal_print, display_table, get_theme_color, display_progress_bar
 
-BACKUP_DIR = "system/backups"
+BACKUP_DIR = getattr(config, "CITADEL_BACKUP_DIR", "system/backups")
 
 # Recovery snapshots (Фаза 2.5). Каждый крах / штатный выход пишет JSON
-# в ~/.citadel_recovery/{timestamp}.json — pwd, последние команды, traceback.
-RECOVERY_DIR = os.path.expanduser("~/.citadel_recovery")
+# в $CITADEL_RECOVERY_DIR/{timestamp}.json — pwd, последние команды, traceback.
+RECOVERY_DIR = getattr(config, "CITADEL_RECOVERY_DIR", os.path.expanduser("~/.citadel_recovery"))
 RECOVERY_KEEP = 10  # сколько последних снапшотов хранить
 
 # Reason-теги для имени файла и поля "reason" внутри JSON.
@@ -26,7 +26,7 @@ REASON_SIGTERM = "sigterm"       # SIGTERM (через сигнал-хук)
 _VALID_REASONS = frozenset({REASON_EXIT, REASON_INTERRUPT, REASON_CRASH, REASON_SIGTERM})
 
 def create_backup():
-    """Создает резервную копию конфигурации config.py"""
+    """Create a backup copy of config.py."""
     os.makedirs(BACKUP_DIR, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(BACKUP_DIR, f"config_backup_{timestamp}.py")
@@ -38,65 +38,58 @@ def create_backup():
         return False, str(e)
 
 def get_backups():
-    """Возвращает список существующих резервных копий"""
+    """Return a list of existing backups."""
     if not os.path.exists(BACKUP_DIR):
         return []
     files = glob.glob(os.path.join(BACKUP_DIR, "config_backup_*.py"))
-    # Сортируем по времени изменения от новых к старым
+    # Sort by mtime, newest first
     files.sort(key=os.path.getmtime, reverse=True)
     return files
 
 def restore_backup(backup_path):
-    """Восстанавливает config.py из бэкапа"""
+    """Restore config.py from a backup file."""
     if not os.path.exists(backup_path):
-        return False, "Файл бэкапа не найден"
+        return False, "Backup file not found"
     try:
         shutil.copy(backup_path, "config.py")
-        return True, "Файл конфигурации восстановлен. Перезагрузите терминал для применения изменений."
+        return True, "Configuration file restored. Restart the terminal for the changes to take effect."
     except Exception as e:
         return False, str(e)
 
 def check_system_integrity():
-    """Проверяет целостность критических файлов системы Citadel"""
-    critical_files = [
-        "main.py",
-        "config.py",
-        "core/interface.py",
-        "core/auth.py",
-        "core/shell_utils.py",
-        "system/hardware.py",
-        "system/process_mgr.py",
-        "system/network.py",
-        "system/package_mgr.py",
-        "system/recovery.py",
-        "system/geo.py",
-        "system/user_config.py",
-        "system/logger.py",
-        "apps/crypto.py",
-        "apps/passgen.py",
-        "apps/file_browser.py",
-        "apps/notes.py",
-        "apps/launcher.py",
-        "apps/weather.py",
+    """Check the integrity of critical Citadel system files.
+    In production paths are absolute (/opt/citadel/...), in dev — relative to the repo."""
+    # Path prefix: production (/opt/citadel) or repo root (dev).
+    home = getattr(config, "CITADEL_HOME", ".")
+    prefix = "" if home in ("", ".") else (home.rstrip("/") + "/")
+    rel_files = [
+        "main.py", "config.py",
+        "core/interface.py", "core/auth.py", "core/shell_utils.py",
+        "system/hardware.py", "system/process_mgr.py", "system/network.py",
+        "system/package_mgr.py", "system/recovery.py", "system/geo.py",
+        "system/user_config.py", "system/logger.py",
+        "apps/crypto.py", "apps/passgen.py", "apps/file_browser.py",
+        "apps/notes.py", "apps/launcher.py", "apps/weather.py",
     ]
+    critical_files = [prefix + r for r in rel_files]
 
-    headers = ["Файл", "Статус", "Размер", "Рекомендация"]
+    headers = ["File", "Status", "Size", "Recommendation"]
     rows = []
 
     for filepath in critical_files:
         if not os.path.exists(filepath):
-            rows.append([filepath, "ОТСУТСТВУЕТ", "0 байт", "Пересоздать / восстановить"])
+            rows.append([filepath, "MISSING", "0 bytes", "Recreate / restore"])
         else:
             size = os.path.getsize(filepath)
             if size == 0:
-                rows.append([filepath, "ПУСТОЙ / ПОВРЕЖДЕН", f"{size} байт", "Перезаписать рабочий код"])
+                rows.append([filepath, "EMPTY / CORRUPT", f"{size} bytes", "Overwrite with a working copy"])
             else:
-                rows.append([filepath, "ОК", f"{size} байт", "Действие не требуется"])
+                rows.append([filepath, "OK", f"{size} bytes", "No action required"])
 
     return headers, rows
 
 def run_recovery_menu():
-    """Интерактивное меню системы восстановления"""
+    """Interactive recovery system menu."""
     while True:
         clear_screen()
         theme_color = get_theme_color()
@@ -105,55 +98,55 @@ def run_recovery_menu():
         red = config.COLORS["RED"]
 
         print(f"{theme_color}==================================================")
-        print("          СИСТЕМА ВОССТАНОВЛЕНИЯ CITADEL          ")
+        print("          CITADEL RECOVERY SYSTEM                  ")
         print(f"=================================================={reset}")
-        print("\nВыберите действие:")
-        print("[1] Проверить целостность файлов системы")
-        print("[2] Создать резервную копию конфигурации (config.py)")
-        print("[3] Восстановить конфигурацию из резервной копии")
-        print("[B] Вернуться назад (Back)")
+        print("\nSelect an action:")
+        print("[1] Check system file integrity")
+        print("[2] Create a backup of the configuration (config.py)")
+        print("[3] Restore the configuration from a backup")
+        print("[B] Return to previous menu (Back)")
 
-        choice = input("\nВведите пункт меню: ").strip().lower()
+        choice = input("\nEnter a menu item: ").strip().lower()
 
         if choice == '1':
             clear_screen()
-            print(f"{theme_color}--- Проверка целостности компонентов системы ---{reset}\n")
+            print(f"{theme_color}--- Checking integrity of system components ---{reset}\n")
             headers, rows = check_system_integrity()
             display_table(headers, rows)
 
-            any_corrupt = any(r[1] != "ОК" for r in rows)
+            any_corrupt = any(r[1] != "OK" for r in rows)
             if any_corrupt:
-                print(f"\n{red}[ WARNING ]: Обнаружены поврежденные или отсутствующие компоненты!{reset}")
+                print(f"\n{red}[ WARNING ]: Damaged or missing components detected!{reset}")
             else:
-                print(f"\n{green}[ SUCCESS ]: Все критические файлы целостны.{reset}")
+                print(f"\n{green}[ SUCCESS ]: All critical files are intact.{reset}")
 
-            input("\nНажмите Enter для продолжения...")
+            input("\nPress Enter to continue...")
 
         elif choice == '2':
             clear_screen()
-            print("Создание точки восстановления...")
-            display_progress_bar(1.0, "Резервное копирование")
+            print("Creating a restore point...")
+            display_progress_bar(1.0, "Backing up")
             success, path = create_backup()
             if success:
-                print(f"{green}[ SUCCESS ]: Бэкап успешно создан: {os.path.basename(path)}{reset}")
+                print(f"{green}[ SUCCESS ]: Backup created successfully: {os.path.basename(path)}{reset}")
             else:
-                print(f"{red}[ ERROR ]: Ошибка создания бэкапа: {path}{reset}")
-            input("\nНажмите Enter для продолжения...")
+                print(f"{red}[ ERROR ]: Failed to create backup: {path}{reset}")
+            input("\nPress Enter to continue...")
 
         elif choice == '3':
             clear_screen()
             backups = get_backups()
             if not backups:
-                print("Резервные копии не найдены.")
-                input("\nНажмите Enter для продолжения...")
+                print("No backups found.")
+                input("\nPress Enter to continue...")
                 continue
 
-            print(f"{theme_color}Доступные точки восстановления:{reset}\n")
+            print(f"{theme_color}Available restore points:{reset}\n")
             for idx, path in enumerate(backups, 1):
                 mtime = time.ctime(os.path.getmtime(path))
-                print(f"[{idx}] {os.path.basename(path)} (Создан: {mtime})")
+                print(f"[{idx}] {os.path.basename(path)} (Created: {mtime})")
 
-            select = input("\nВыберите номер бэкапа для восстановления или 'b' для отмены: ").strip()
+            select = input("\nSelect the backup number to restore, or 'b' to cancel: ").strip()
             if select.lower() == 'b':
                 continue
 
@@ -161,17 +154,17 @@ def run_recovery_menu():
                 num = int(select)
                 if 1 <= num <= len(backups):
                     target = backups[num - 1]
-                    display_progress_bar(1.2, "Восстановление конфигурации")
+                    display_progress_bar(1.2, "Restoring configuration")
                     success, msg = restore_backup(target)
                     if success:
                         print(f"{green}[ SUCCESS ]: {msg}{reset}")
                     else:
                         print(f"{red}[ ERROR ]: {msg}{reset}")
                 else:
-                    print("Неверный номер.")
+                    print("Invalid number.")
             except ValueError:
-                print("Некорректный ввод.")
-            input("\nНажмите Enter для продолжения...")
+                print("Invalid input.")
+            input("\nPress Enter to continue...")
 
         elif choice == 'b':
             break
@@ -269,7 +262,7 @@ def snapshot_session(
                              когда список может расти в момент exit).
         traceback_text: готовый traceback (для crash-ветки).
         exc: исключение (если задано — вытащим из него __traceback__).
-        extra: дополнительные поля для JSON (например, "version": "3.0").
+        extra: дополнительные поля для JSON (например, "version": "1.0").
 
     Returns:
         Полный путь к файлу снапшота, либо None при ошибке записи.
@@ -315,6 +308,7 @@ def snapshot_session(
         "recent_cmds": list(recent_cmds),
         "user": getattr(config, "USER_NAME", "unknown"),
         "version": getattr(config, "VERSION", "unknown"),
+        "core_version": getattr(config, "CORE_VERSION", "unknown"),
     }
     if traceback_text:
         payload["traceback"] = traceback_text

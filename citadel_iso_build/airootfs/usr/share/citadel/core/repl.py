@@ -54,7 +54,9 @@ from .shell_signals import get_signal_context
 # Конфигурация REPL
 # ============================================================================
 
-HISTORY_PATH = os.path.expanduser("~/.citadel_history")
+HISTORY_PATH = getattr(
+    __import__("config"), "CITADEL_HISTORY_FILE", os.path.expanduser("~/.citadel_history")
+)
 HISTORY_MAXLEN = 500  # синхронизировано с HistoryManager default
 
 EXIT_COMMANDS = frozenset({"exit", "q", "quit", ":q", ":x"})
@@ -114,7 +116,7 @@ def _format_recent_commands(
         recent = []
 
     if not recent:
-        # Пустая история — намекнём что можно набрать help.
+        # Empty history — hint that 'help' is available.
         return [
             f"  │{muted}  (no commands yet — try 'help'){reset}"
             f"{' ' * max(0, width - 30)}│",
@@ -158,7 +160,7 @@ def build_banner(
     Структура:
         ┌──────────────────────────────────────────────┐
         │   <логотип Citadel из logo.txt, если есть>   │
-        │  CITADEL OS · Modular Core v3.0              │
+        │  CITADEL OS · Core v{config.CORE_VERSION}                 │
         │                                              │
         │  Recent commands:                            │
         │    1. ls -la                                 │
@@ -182,16 +184,16 @@ def build_banner(
         except Exception:
             palette = None
 
-    # Цвета с fallback на config.COLORS.
+    # Colors with fallback to config.COLORS.
     primary = (palette.primary if palette else config.COLORS.get("PURPLE", "")) if use_color else ""
     accent = (palette.accent if palette else config.COLORS.get("CYAN", "")) if use_color else ""
     muted = (palette.muted if palette else config.COLORS.get("GRAY", "")) if use_color else ""
     reset = (palette.reset if palette else config.COLORS.get("RESET", "")) if use_color else ""
 
-    # Ширина баннера — 46 символов внутри (подогнано под logo.txt).
+    # Banner width — 46 characters inside (matches logo.txt).
     W = 46
 
-    # Шапка.
+    # Top frame.
     top = f"{primary}  ┌{'─' * W}┐{reset}"
     sep = f"{primary}  │{' ' * W}│{reset}"
     bot = f"{primary}  └{'─' * W}┘{reset}"
@@ -199,23 +201,23 @@ def build_banner(
     lines: list[str] = []
     lines.append(top)
 
-    # Логотип: рисуем в рамке. Каждая строка лого обрезается/добивается.
+    # Logo: draw inside the frame. Each logo line is truncated/padded.
     logo_lines = _read_logo_lines()
     if logo_lines:
-        # logo.txt: первая строка пустая, потом ASCII, потом две строки
-        # с явной надписью CITADEL OS. Возьмём только ASCII-арт (строки
-        # 1..7 по индексу 0..6) — блок CITADEL OS нарисуем сами.
+        # logo.txt: first line is empty, then ASCII art, then two lines
+        # with the explicit CITADEL OS label. Use only the ASCII art (lines
+        # 1..7 by index 0..6) — we draw the CITADEL OS block ourselves.
         art = [ln for ln in logo_lines[1:8] if ln.strip()]
         for art_line in art:
-            # Срезаем до 46 видимых символов, дополняем пробелами.
+            # Trim to 46 visible characters, pad with spaces.
             visible = art_line[:W]
             pad = W - len(visible)
             lines.append(
                 f"{primary}  │{reset}{accent}{visible}{reset}{' ' * pad}{primary}│{reset}"
             )
     else:
-        # Нет logo.txt — fallback на текстовую шапку.
-        title = f"  CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+        # No logo.txt — fall back to a textual header.
+        title = f"  CITADEL OS  -  Core v{getattr(config, 'CORE_VERSION', '3.0')}"
         pad = W - len(title)
         lines.append(
             f"{primary}  │{reset}{accent}{title}{reset}{' ' * pad}{primary}│{reset}"
@@ -223,8 +225,8 @@ def build_banner(
 
     lines.append(sep)
 
-    # Подпись версии + строка-разделитель.
-    ver = f"CITADEL OS  -  Modular Core v{getattr(config, 'VERSION', '3.0')}"
+    # Version caption + separator line.
+    ver = f"CITADEL OS  -  Core v{getattr(config, 'CORE_VERSION', '3.0')}"
     pad = W - len(ver)
     lines.append(
         f"{primary}  │{reset}  {accent}{ver}{reset}{' ' * pad}{primary}│{reset}"
@@ -238,7 +240,7 @@ def build_banner(
         f"{primary}  │{reset}  {header}{' ' * pad}{primary}│{reset}"
     )
 
-    # 3 последние команды.
+    # 3 most recent commands.
     for rline in _format_recent_commands(
         history=history, n=n_recent, width=W - 2, muted=muted, accent=accent, reset=reset,
     ):
@@ -246,7 +248,7 @@ def build_banner(
 
     lines.append(sep)
 
-    # Подсказка про help / exit.
+    # Hint about help / exit.
     hint1 = f"{muted}Type 'help' for commands. Ctrl-D / 'exit' to quit.{reset}"
     hint2 = f"{muted}Tip: arrow keys for history, Tab for completion.{reset}"
     pad1 = W - 2 - len("Type 'help' for commands. Ctrl-D / 'exit' to quit.")
@@ -268,7 +270,7 @@ def build_banner(
 BANNER = (
     f"{config.COLORS.get('PURPLE', '')}"
     f"  ┌──────────────────────────────────────────────┐\n"
-    f"  │  Citadel Shell v{config.VERSION:>14}                │\n"
+    f"  │  Citadel Shell v{config.VERSION:>14}  (Core {config.CORE_VERSION})       │\n"
     f"  │  Type 'help' for commands. Ctrl-D / 'exit' to quit.  │\n"
     f"  └──────────────────────────────────────────────┘"
     f"{config.COLORS.get('RESET', '')}"
@@ -317,13 +319,13 @@ def build_prompt(
     red = config.COLORS.get("RED", "\033[31m")
 
     if continuation:
-        # Multiline-режим: минималистичный prompt. Красный если что-то
-        # синтаксически сломано (quote/backslash), обычный акцент для скобок.
+        # Multiline mode: minimal prompt. Red if something is
+        # syntactically broken (quote/backslash), normal accent for brackets.
         marker_color = red if reason in ("quote", "backslash") else accent
         return f"{marker_color}... {reset}"
 
     user = user_name or getattr(config, "USER_NAME", "user")
-    ver = version or getattr(config, "VERSION", "3.0")
+    ver = version or getattr(config, "VERSION", "1.0")
     cwd = cwd or os.getcwd()
     base = os.path.basename(cwd) or cwd
     sep = f"{accent}@{reset}"
@@ -454,8 +456,8 @@ def _register_default_builtins() -> None:
         return
 
     def _help(args):
-        # Локальный help — список builtin'ов. Полноценная таблица
-        # из core.interface.display_help() доступна через старый main.py.
+        # Local help — list of builtins. The full table from
+        # core.interface.display_help() is available via the main shell.
         items = sorted(shell_utils._BUILTIN_HANDLERS.keys()) if hasattr(
             shell_utils, "_BUILTIN_HANDLERS"
         ) else []
@@ -475,7 +477,7 @@ def _register_default_builtins() -> None:
         return 0
 
     def _exit(args):
-        # Маркер «пора выходить». REPL перехватывает rc == -1.
+        # Sentinel meaning "time to exit". REPL catches rc == -1.
         return -1
 
     shell_utils.register_builtin("help", _help)
@@ -484,10 +486,10 @@ def _register_default_builtins() -> None:
     shell_utils.register_builtin("q", _exit)
     shell_utils.register_builtin("quit", _exit)
     shell_utils.register_builtin("fetch", lambda args: (_clear(args), 0)[1])
-    # Фаза 2: Job-control. External-имя `kill` занято main_handlers.cmd_kill
-    # (завершение OS-процесса по PID), поэтому background-job kill
-    # зарегистрирован под `jkill` — см. shell_utils.run_command() строки
-    # 376-383 (fallback) и main_handlers.register_all() (override не нужен).
+    # Phase 2: Job control. The external name `kill` is taken by main_handlers.cmd_kill
+    # (OS process termination by PID), so background-job kill is registered
+    # under `jkill` — see shell_utils.run_command() lines 376-383 (fallback)
+    # and main_handlers.register_all() (no override needed).
     shell_utils.register_builtin("jkill", shell_utils._builtin_kill)
 
     _BUILTINS_REGISTERED = True
@@ -524,8 +526,8 @@ def process_line(
     try:
         return run_command(line)
     except KeyboardInterrupt:
-        # Внутри run_command мог быть поднят, но не пойман. Подстраховка.
-        print()  # перевод строки после ^C
+        # run_command may raise but not catch it. Safety net.
+        print()  # newline after ^C
         return 130
     except EOFError:
         return -1
@@ -609,12 +611,12 @@ def run_repl(
                 print(banner_text)
             else:
                 # Non-TTY: сухой однострочный баннер без ANSI.
-                print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+                print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
         except UnicodeEncodeError:
-            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+            print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
         except Exception:
             # Любой сбой при построении баннера — фоллбек на простой текст.
-            print("  Citadel Shell v" + getattr(config, "VERSION", "3.0"))
+            print("  Citadel Shell v" + getattr(config, "VERSION", "1.0"))
 
     # 5. Loop
     _input = raw_input if raw_input is not None else input
@@ -649,24 +651,24 @@ def run_repl(
                     if line and not line.endswith("\n"):
                         line += "\n"
             except KeyboardInterrupt:
-                # Ctrl-C в multiline — сбрасываем буфер, НО не выходим из shell.
+                # Ctrl-C in multiline — clear buffer, but do NOT exit the shell.
                 if ml_buffer:
                     ml_buffer.clear()
                     ml_reason = ""
                     print("\n  (multiline buffer cleared)")
                     continue
-                # Ctrl-C на пустом prompt — не убиваем shell.
+                # Ctrl-C on empty prompt — do not kill the shell.
                 print("\n  (interrupted — type 'exit' to quit)")
                 continue
             except EOFError:
-                # Ctrl-D / конец pipe. Если буфер непустой — сбрасываем
-                # с предупреждением, иначе выходим.
+                # Ctrl-D / end of pipe. If buffer is non-empty, drop it
+                # with a warning, otherwise exit.
                 if ml_buffer:
                     print(f"\n  [ Citadel: dropped {len(ml_buffer)} buffered line(s) on EOF ]")
                     ml_buffer.clear()
                     ml_reason = ""
                     continue
-                print()  # newline после prompt
+                print()  # newline after prompt
                 break
 
             line = line.rstrip("\n").rstrip("\r")
@@ -743,21 +745,21 @@ def run_repl(
                     pass
 
     except KeyboardInterrupt:
-        # Ctrl-C на самом глубоком уровне — сваливаем.
+        # Ctrl-C at the deepest level — bail out.
         print("\n  [ Citadel: forced exit ]")
         exit_code = 130
 
     finally:
         bridge.close()
-        # Корректное завершение: atexit-хук для readline тоже сработает,
-        # но явный close() гарантирует flush даже при KeyboardInterrupt.
+        # Graceful shutdown: the readline atexit hook will also fire,
+        # but explicit close() guarantees a flush even on KeyboardInterrupt.
         try:
             atexit.unregister(readline.write_history_file)  # noqa: F821
         except Exception:
             pass
 
-        # Cleanup: прибить все ещё-running фоновые jobs, чтобы они не
-        # остались зомби-процессами после выхода из REPL.
+        # Cleanup: kill any still-running background jobs so they don't
+        # become zombies after the REPL exits.
         try:
             from .shell_jobs import get_default_job_table
             table = get_default_job_table()

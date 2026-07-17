@@ -94,24 +94,24 @@ def decrypt_string(encoded: str, passphrase: str) -> str:
             fernet, _ = _make_fernet(passphrase)
             return fernet.decrypt(token).decode("utf-8")
         except InvalidToken:
-            raise ValueError("Неверный ключ шифрования")
+            raise ValueError("Invalid encryption key")
         except Exception as e:
-            raise ValueError(f"Ошибка расшифровки: {e}")
+            raise ValueError(f"Decryption error: {e}")
 
     # Legacy XOR (формат "xor:...")
     if encoded.startswith("xor:"):
         return _xor_fallback(encoded[4:], passphrase)
 
-    raise ValueError("Неизвестный формат шифрования. Ожидается префикс 'ctdl:' или 'xor:'.")
+    raise ValueError("Unknown encryption format. Expected prefix 'ctdl:' or 'xor:'.")
 
 
 def encrypt_file(path: str, passphrase: str) -> tuple[bool, str]:
-    """Шифрование содержимого файла. Возвращает (success, message)."""
+    """Encrypt file contents. Returns (success, message)."""
     if not os.path.exists(path):
-        return False, "Файл не найден"
+        return False, "File not found"
 
     try:
-        # Бинарный режим, чтобы корректно обрабатывать любые файлы
+        # Binary mode so we handle any file type correctly
         with open(path, "rb") as f:
             data = f.read()
 
@@ -127,15 +127,15 @@ def encrypt_file(path: str, passphrase: str) -> tuple[bool, str]:
         with open(path, "wb") as f:
             f.write(header + payload)
 
-        return True, f"Файл '{path}' успешно зашифрован."
+        return True, f"File '{path}' encrypted successfully."
     except Exception as e:
-        return False, f"Не удалось зашифровать файл: {e}"
+        return False, f"Failed to encrypt file: {e}"
 
 
 def decrypt_file(path: str, passphrase: str) -> tuple[bool, str]:
-    """Расшифровка содержимого файла. Возвращает (success, message)."""
+    """Decrypt file contents. Returns (success, message)."""
     if not os.path.exists(path):
-        return False, "Файл не найден"
+        return False, "File not found"
 
     try:
         with open(path, "rb") as f:
@@ -147,109 +147,109 @@ def decrypt_file(path: str, passphrase: str) -> tuple[bool, str]:
             try:
                 data = fernet.decrypt(token)
             except InvalidToken:
-                return False, "Неверный ключ шифрования"
+                return False, "Invalid encryption key"
         elif raw.startswith(b"xor:"):
             data = _xor_fallback(raw[4:].decode("utf-8", errors="replace"), passphrase).encode("utf-8")
         else:
-            return False, "Файл не содержит распознаваемого заголовка шифрования."
+            return False, "File has no recognized encryption header."
 
         with open(path, "wb") as f:
             f.write(data)
 
-        return True, f"Файл '{path}' успешно расшифрован."
+        return True, f"File '{path}' decrypted successfully."
     except Exception as e:
-        return False, f"Не удалось расшифровать файл: {e}"
+        return False, f"Failed to decrypt file: {e}"
 
 
 def run_crypto_module():
-    """Интерактивное меню модуля шифрования Security Shield."""
+    """Interactive Security Shield encryption module menu."""
     while True:
         clear_screen()
         theme_color = get_theme_color()
         palette = get_theme_state().current_palette
         reset = palette.reset
-        # accent: в DAY/EVENING — YELLOW, в NIGHT — RED (используем и для
-        # «успеха», и для «ошибки», и для «предупреждения»).
+        # accent: in DAY/EVENING — YELLOW, in NIGHT — RED (used for
+        # success, error, and warning alike).
         accent = palette.accent
 
-        backend = "Fernet (AES-128-CBC + HMAC-SHA256)" if _HAS_CRYPTO else "XOR (FALLBACK — установите 'cryptography')"
+        backend = "Fernet (AES-128-CBC + HMAC-SHA256)" if _HAS_CRYPTO else "XOR (FALLBACK — install 'cryptography')"
 
         print(f"{theme_color}=========================================")
         print("         SECURE CRYPTO-SHIELD SYSTEM     ")
         print(f"========================================={reset}")
-        print(f"\nАлгоритм: {accent}{backend}{reset}")
+        print(f"\nAlgorithm: {accent}{backend}{reset}")
         if not _HAS_CRYPTO:
-            print(f"{accent}ВНИМАНИЕ: cryptography не установлена. Шифрование небезопасно!{reset}")
-            print(f"Установите: {accent}pip install cryptography{reset}")
+            print(f"{accent}WARNING: 'cryptography' is not installed. Encryption is unsafe!{reset}")
+            print(f"Install with: {accent}pip install cryptography{reset}")
 
-        print("\n[1] Зашифровать строку данных (Encrypt)")
-        print("[2] Расшифровать строку данных (Decrypt)")
-        print("[3] Зашифровать файл (Encrypt File)")
-        print("[4] Расшифровать файл (Decrypt File)")
-        print("[B] Вернуться назад (Back)")
+        print("\n[1] Encrypt a string of data (Encrypt)")
+        print("[2] Decrypt a string of data (Decrypt)")
+        print("[3] Encrypt a file (Encrypt File)")
+        print("[4] Decrypt a file (Decrypt File)")
+        print("[B] Return to previous menu (Back)")
 
-        choice = input("\nВыберите опцию: ").strip().lower()
+        choice = input("\nSelect an option: ").strip().lower()
 
         if choice == '1':
-            msg = input("\nВведите конфиденциальный текст: ")
-            key = input("Введите ключ шифрования (пароль): ")
+            msg = input("\nEnter the confidential text: ")
+            key = input("Enter the encryption key (passphrase): ")
             if not msg or not key:
-                print("Текст и ключ не могут быть пустыми.")
-                input("\nНажмите Enter для продолжения...")
+                print("Text and key must not be empty.")
+                input("\nPress Enter to continue...")
                 continue
             try:
                 coded = encrypt_string(msg, key)
                 print("\n" + "=" * 50)
-                print(f"ЗАШИФРОВАННЫЙ ПОТОК (скопируйте целиком):\n{coded}")
+                print(f"ENCRYPTED STREAM (copy it in full):\n{coded}")
                 print("=" * 50)
             except Exception as e:
                 print(f"{accent}[ ERROR ]: {e}{reset}")
-            input("\nНажмите Enter для продолжения...")
+            input("\nPress Enter to continue...")
 
         elif choice == '2':
-            coded_input = input("\nВставьте зашифрованный поток целиком: ").strip()
-            key = input("Введите ключ расшифровки: ")
+            coded_input = input("\nPaste the encrypted stream in full: ").strip()
+            key = input("Enter the decryption key: ")
             if not coded_input or not key:
-                print("Поток и ключ не могут быть пустыми.")
-                input("\nНажмите Enter для продолжения...")
+                print("Stream and key must not be empty.")
+                input("\nPress Enter to continue...")
                 continue
 
             try:
                 decoded = decrypt_string(coded_input, key)
                 print("\n" + "=" * 50)
-                terminal_print(f"РАСШИФРОВАННЫЕ ДАННЫЕ:\n{decoded}", color_code=accent)
+                terminal_print(f"DECRYPTED DATA:\n{decoded}", color_code=accent)
                 print("=" * 50)
             except ValueError as e:
                 terminal_print(f"\n[ ERROR ]: {e}", color_code=accent)
             except Exception as e:
-                terminal_print(f"\n[ ERROR ]: Ошибка декодирования ({e}).", color_code=accent)
-            input("\nНажмите Enter для продолжения...")
+                terminal_print(f"\n[ ERROR ]: Decoding error ({e}).", color_code=accent)
+            input("\nPress Enter to continue...")
 
         elif choice == '3':
-            filepath = input("\nВведите путь к файлу: ").strip()
-            key = input("Введите ключ шифрования: ")
+            filepath = input("\nEnter the file path: ").strip()
+            key = input("Enter the encryption key: ")
             if not key:
-                print("Ключ не может быть пустым.")
-                input("\nНажмите Enter для продолжения...")
+                print("Key must not be empty.")
+                input("\nPress Enter to continue...")
                 continue
 
-            display_progress_bar(0.8, "Шифрование файла")
+            display_progress_bar(0.8, "Encrypting file")
             ok, msg = encrypt_file(filepath, key)
             print(f"{accent}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
-            input("\nНажмите Enter для продолжения...")
+            input("\nPress Enter to continue...")
 
         elif choice == '4':
-            filepath = input("\nВведите путь к файлу: ").strip()
-            key = input("Введите ключ шифрования: ")
+            filepath = input("\nEnter the file path: ").strip()
+            key = input("Enter the encryption key: ")
             if not key:
-                print("Ключ не может быть пустым.")
-                input("\nНажмите Enter для продолжения...")
+                print("Key must not be empty.")
+                input("\nPress Enter to continue...")
                 continue
 
-            display_progress_bar(0.8, "Расшифровка файла")
+            display_progress_bar(0.8, "Decrypting file")
             ok, msg = decrypt_file(filepath, key)
             print(f"{accent}[ {'SUCCESS' if ok else 'ERROR'} ]: {msg}{reset}")
-            input("\nНажмите Enter для продолжения...")
+            input("\nPress Enter to continue...")
 
         elif choice == 'b':
             break
