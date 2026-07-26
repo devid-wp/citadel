@@ -21,8 +21,10 @@ def update_config_value(key, value, is_string=True):
             return True
         return False
 
-    # Фолбэк: legacy путь — писать прямо в config.py.
-    config_path = "config.py"
+    # Фолбэк: legacy путь — писать прямо в config.py. В production —
+    # /opt/citadel/config.py, в dev — <repo>/config.py.
+    citadel_home = getattr(config, "CITADEL_HOME", ".")
+    config_path = os.path.join(citadel_home, "config.py")
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -47,7 +49,7 @@ def update_config_value(key, value, is_string=True):
         setattr(config, key, value)
         return True
     except Exception as e:
-        print(f"Ошибка записи в config.py: {e}")
+        print(f"Error writing to config.py: {e}")
         return False
 
 def run_security_audit():
@@ -60,85 +62,86 @@ def run_security_audit():
 
 
     print(f"{theme_color}==================================================")
-    print("           АУДИТ БЕЗОПАСНОСТИ CITADEL OS          ")
+    print("           CITADEL OS SECURITY AUDIT              ")
     print(f"=================================================={reset}\n")
-    
-    display_progress_bar(1.2, "Сканирование конфигураций и сетевых портов")
-    
-    headers = ["Параметр проверки", "Статус", "Уровень риска", "Рекомендация"]
+
+    display_progress_bar(1.2, "Scanning configurations and network ports")
+
+    headers = ["Check parameter", "Status", "Risk level", "Recommendation"]
     rows = []
-    
-    # 1. Проверка пароля по умолчанию
-    # MD5 от admin = "21232f297a57a5a743894a0e4a801fc3"
+
+    # 1. Default password check
+    # MD5 of admin = "21232f297a57a5a743894a0e4a801fc3"
     default_pass = getattr(config, 'PASSWORD_HASH', '') == "21232f297a57a5a743894a0e4a801fc3"
     if default_pass:
-        rows.append(["Пароль администратора", "Используется дефолтный ('admin')", "КРИТИЧЕСКИЙ", "Немедленно смените пароль"])
+        rows.append(["Administrator password", "Default in use ('admin')", "CRITICAL", "Change the password immediately"])
     else:
-        rows.append(["Пароль администратора", "Изменен пользователем", "НЕТ", "Регулярно обновляйте пароль"])
-        
-    # 2. Проверка режима отладки (Debug Mode)
+        rows.append(["Administrator password", "Changed by user", "NONE", "Update the password regularly"])
+
+    # 2. Debug mode check
     debug_mode = getattr(config, 'DEBUG_MODE', False)
     if debug_mode:
-        rows.append(["Режим отладки (Debug)", "ВКЛЮЧЕН", "СРЕДНИЙ", "Отключите в продакшн-среде"])
+        rows.append(["Debug mode", "ENABLED", "MEDIUM", "Disable it in production"])
     else:
-        rows.append(["Режим отладки (Debug)", "ВЫКЛЮЧЕН", "НЕТ", "Действие не требуется"])
-        
-    # 3. Проверка прав root/администратора
+        rows.append(["Debug mode", "DISABLED", "NONE", "No action required"])
+
+    # 3. Root/administrator privileges check
     is_root = False
     if os.name != 'nt':
         is_root = os.getuid() == 0
     else:
-        # Для Windows проверяем права администратора
+        # For Windows check admin privileges
         try:
             is_root = ctypes.windll.shell32.IsUserAnAdmin() != 0
         except Exception:
-            # Альтернативный способ через net session
+            # Alternative via net session
             try:
                 subprocess.check_call("net session", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 is_root = True
             except Exception:
                 is_root = False
-                
+
     if is_root:
-        rows.append(["Права суперпользователя", "Запущено от имени Root/Admin", "НИЗКИЙ", "Используйте sudo для отдельных команд"])
+        rows.append(["Superuser privileges", "Running as Root/Admin", "LOW", "Use sudo for individual commands"])
     else:
-        rows.append(["Права суперпользователя", "Ограниченный пользователь", "НЕТ", "Система защищена от случайных изменений"])
-        
-    # 4. Проверка открытых портов (быстрый аудит netstat)
+        rows.append(["Superuser privileges", "Restricted user", "NONE", "System is protected from accidental changes"])
+
+    # 4. Open ports check (quick netstat audit)
     try:
         if os.name == 'nt':
             netstat = subprocess.check_output("netstat -ano", shell=True).decode('cp866')
-            # Ищем прослушивание 0.0.0.0 (LISTENING)
+            # Look for 0.0.0.0 LISTENING
             insecure_listeners = re.findall(r'0\.0\.0\.0:(\d+)\s+.*LISTENING', netstat)
         else:
-            netstat = subprocess.check_output("ss -tlnp", shell=True).decode('utf-8')
+            ss_bin = getattr(config, "TOOL_SS", "/usr/bin/ss")
+            netstat = subprocess.check_output(f"{ss_bin} -tlnp", shell=True).decode('utf-8')
             insecure_listeners = re.findall(r'\*|0\.0\.0\.0:(\d+)', netstat)
-            
+
         if insecure_listeners:
             ports = ", ".join(set(insecure_listeners[:5]))
-            rows.append(["Службы локальной сети", f"Открыты порты: {ports}", "СРЕДНИЙ", "Закройте ненужные службы фаерволом"])
+            rows.append(["Local network services", f"Open ports: {ports}", "MEDIUM", "Close unneeded services with firewall"])
         else:
-            rows.append(["Службы локальной сети", "Внешние порты закрыты", "НЕТ", "Сетевой экран в порядке"])
+            rows.append(["Local network services", "External ports closed", "NONE", "Network filter is OK"])
     except Exception:
-        rows.append(["Службы локальной сети", "Анализ портов недоступен", "НИЗКИЙ", "Проверьте сетевой фильтр вручную"])
-        
-    display_table(headers, rows)
-    
-    # Резюме
-    any_high = any(r[2] in ["КРИТИЧЕСКИЙ", "ВЫСОКИЙ"] for r in rows)
-    any_medium = any(r[2] == "СРЕДНИЙ" for r in rows)
-    
-    if any_high:
-        print(f"\n{accent}[ WARNING ]: Обнаружены критические уязвимости безопасности! Примите меры.{reset}")
-    elif any_medium:
-        print(f"\n{accent}[ WARNING ]: Найдены предупреждения средней критичности.{reset}")
-    else:
-        print(f"\n{accent}[ SUCCESS ]: Аудит успешно пройден. Уязвимостей не обнаружено.{reset}")
+        rows.append(["Local network services", "Port analysis unavailable", "LOW", "Check network filter manually"])
 
-    input("\nНажмите Enter для продолжения...")
+    display_table(headers, rows)
+
+    # Summary
+    any_high = any(r[2] in ["CRITICAL", "HIGH"] for r in rows)
+    any_medium = any(r[2] == "MEDIUM" for r in rows)
+
+    if any_high:
+        print(f"\n{accent}[ WARNING ]: Critical security vulnerabilities detected! Take action.{reset}")
+    elif any_medium:
+        print(f"\n{accent}[ WARNING ]: Medium-severity warnings found.{reset}")
+    else:
+        print(f"\n{accent}[ SUCCESS ]: Audit passed successfully. No vulnerabilities found.{reset}")
+
+    input("\nPress Enter to continue...")
 
 def run_citadel_center():
-    """Citadel Center - интерактивный центр управления Citadel OS"""
+    """Citadel Center — interactive control center for Citadel OS."""
     while True:
         clear_screen()
         theme_color = get_theme_color()
@@ -148,60 +151,60 @@ def run_citadel_center():
 
 
         print(f"{theme_color}==================================================")
-        print("          CITADEL CENTER - ЦЕНТР УПРАВЛЕНИЯ       ")
+        print("          CITADEL CENTER - CONTROL HUB            ")
         print(f"=================================================={reset}")
-        print(f"Пользователь: {accent}{config.USER_NAME}{reset} | Тема оформления: {theme_color}{config.THEME_COLOR}{reset}\n")
+        print(f"User: {accent}{config.USER_NAME}{reset} | Theme: {theme_color}{config.THEME_COLOR}{reset}\n")
 
-        print("[1] Изменить имя пользователя")
-        print("[2] Сменить цветовую тему терминала")
-        print("[3] Сменить пароль администратора")
-        print("[4] Запустить аудит безопасности (Security Audit)")
-        print("[B] Вернуться в главное меню (Back)")
+        print("[1] Change user name")
+        print("[2] Change terminal color theme")
+        print("[3] Change administrator password")
+        print("[4] Run security audit")
+        print("[B] Return to main menu (Back)")
 
-        choice = input("\nВыберите раздел настроек: ").strip().lower()
+        choice = input("\nSelect settings section: ").strip().lower()
 
         if choice == '1':
             clear_screen()
-            new_name = input("Введите новое имя пользователя: ").strip()
+            new_name = input("Enter new user name: ").strip()
             if new_name:
                 if update_config_value("USER_NAME", new_name):
-                    print(f"\n{accent}[ SUCCESS ]: Имя пользователя успешно изменено на '{new_name}'.{reset}")
+                    print(f"\n{accent}[ SUCCESS ]: User name successfully changed to '{new_name}'.{reset}")
                 else:
-                    print("\n[ ERROR ]: Не удалось обновить имя пользователя.")
+                    print("\n[ ERROR ]: Failed to update user name.")
             time.sleep(1)
 
         elif choice == '2':
             clear_screen()
-            print("Доступные темы оформления:")
+            print("Available themes:")
             available_themes = [k for k in config.COLORS.keys() if k != "RESET"]
             for idx, theme in enumerate(available_themes, 1):
                 c = config.COLORS[theme]
                 print(f"[{idx}] {c}{theme}{reset}")
 
-            theme_choice = input("\nВыберите номер темы: ").strip()
+            theme_choice = input("\nSelect theme number: ").strip()
             try:
                 idx = int(theme_choice)
                 if 1 <= idx <= len(available_themes):
                     selected = available_themes[idx - 1]
                     if update_config_value("THEME_COLOR", selected):
-                        print(f"\n{accent}[ SUCCESS ]: Тема успешно изменена на {config.COLORS[selected]}{selected}{reset}.")
+                        print(f"\n{accent}[ SUCCESS ]: Theme successfully changed to {config.COLORS[selected]}{selected}{reset}.")
                     else:
-                        print("\n[ ERROR ]: Не удалось изменить тему.")
+                        print("\n[ ERROR ]: Failed to change theme.")
                 else:
-                    print("Неверный номер.")
+                    print("Invalid number.")
             except ValueError:
-                print("Некорректный ввод.")
+                print("Invalid input.")
             time.sleep(1.5)
 
         elif choice == '3':
             clear_screen()
-            print(f"{theme_color}=== СМЕНА ПАРОЛЯ АДМИНИСТРАТОРА ==={reset}\n")
-            old_pass = input("Введите текущий пароль: ").strip()
-            new_pass = input("Введите новый пароль: ").strip()
-            confirm_pass = input("Подтвердите новый пароль: ").strip()
+            print(f"{theme_color}=== CHANGE ADMINISTRATOR PASSWORD ==={reset}\n")
+            old_pass = input("Enter current password: ").strip()
+            new_pass = input("Enter new password: ").strip()
+            confirm_pass = input("Confirm new password: ").strip()
 
             if new_pass != confirm_pass:
-                print(f"\n{accent}[ ERROR ]: Новые пароли не совпадают!{reset}")
+                print(f"\n{accent}[ ERROR ]: New passwords do not match!{reset}")
             else:
                 success, msg = change_password(old_pass, new_pass)
                 if success:

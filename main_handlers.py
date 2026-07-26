@@ -1,20 +1,21 @@
 # FILE: main_handlers.py
-# Citadel OS — реестр builtin-обработчиков для main.py.
+# Citadel OS — registry of builtin handlers for main.py.
 #
-# Фаза 2: вся кастомная логика команд Citadel (help/fetch/clear/center/pkg/
+# Phase 2: all custom Citadel command logic (help/fetch/clear/center/pkg/
 # netscan/ping/ip/sysmon/ps/kill/df/free/files/notes/crypto/passgen/launcher/
-# recovery/history/weather/geo/log/alias/lock/ls/cd/cat) переехала из main.py
-# сюда. Каждая команда — это handler-функция с сигнатурой
+# recovery/history/weather/geo/log/alias/lock/ls/cd/cat) has moved out of
+# main.py into here. Each command is a handler function with the signature
 #   cmd_xxx(args: list[str]) -> int
-# Handler'ы регистрируются в shell_utils._BUILTIN_HANDLERS через
-# register_all(shell_utils) и далее вызываются из core.shell_utils.run_command().
+# Handlers are registered in shell_utils._BUILTIN_HANDLERS via
+# register_all(shell_utils) and then called from core.shell_utils.run_command().
 #
-# External-имя `kill` закреплено за cmd_kill (PID-процесс) — это
-# намеренный override jkill-механизма из core.repl._register_default_builtins,
-# см. строку "kill" в BUILTIN_HANDLERS ниже.
+# The external name `kill` is bound to cmd_kill (process PID) — this is
+# an intentional override of the jkill mechanism from
+# core.repl._register_default_builtins, see the "kill" entry in
+# BUILTIN_HANDLERS below.
 #
-# exit/q/quit НЕ регистрируются — их обработку (return -1) делает
-# core.repl._register_default_builtins().
+# exit/q/quit are NOT registered — core.repl._register_default_builtins()
+# handles them (returning -1).
 
 from __future__ import annotations
 from core.shell_arith import eval_test_condition
@@ -51,18 +52,18 @@ from apps.weather import run_weather_app
 
 
 # ---------------------------------------------------------------------------
-# Локальный legacy-список для команды `history` (старый формат:  idx  cmd).
-# Синхронизируется из main.py (после run_command() — CMD_HISTORY.append).
+# Local legacy list for the `history` command (legacy format: idx  cmd).
+# Synchronized from main.py (after run_command() — CMD_HISTORY.append).
 # ---------------------------------------------------------------------------
 CMD_HISTORY: List[str] = []
 
 
 # ===========================================================================
-# Вспомогательные функции (subprocess-вызовы, не-mock)
+# Helper functions (subprocess calls, non-mock)
 # ===========================================================================
 
 def _run_linux_cmd(cmd_list: List[str]) -> str:
-    """Безопасный запуск системных команд (Linux/macOS)."""
+    """Safe execution of system commands (Linux/macOS)."""
     try:
         result = subprocess.run(
             cmd_list, stdout=subprocess.PIPE,
@@ -70,23 +71,23 @@ def _run_linux_cmd(cmd_list: List[str]) -> str:
         )
         if result.returncode == 0:
             return result.stdout.strip()
-        return (f"{config.COLORS['RED']}Ошибка системы:{config.COLORS['RESET']}\n"
+        return (f"{config.COLORS['RED']}System error:{config.COLORS['RESET']}\n"
                 f"{result.stderr.strip()}")
     except FileNotFoundError:
-        return f"{config.COLORS['YELLOW']}[Системная утилита не найдена]{config.COLORS['RESET']}"
+        return f"{config.COLORS['YELLOW']}[System utility not found]{config.COLORS['RESET']}"
     except Exception as e:  # noqa: BLE001
         return str(e)
 
 
 def _run_df() -> None:
-    """Мониторинг свободного места на дисках (кроссплатформенный)."""
+    """Free disk space monitor (cross-platform)."""
     theme_color = config.COLORS.get(
         getattr(config, 'THEME_COLOR', 'PURPLE'),
         config.COLORS["PURPLE"],
     )
     reset = config.COLORS["RESET"]
 
-    print(f"\n{theme_color}--- Мониторинг дискового пространства ---{reset}")
+    print(f"\n{theme_color}--- Disk Space Monitor ---{reset}")
     if os.name == 'nt':
         try:
             ps_cmd = (
@@ -98,7 +99,7 @@ def _run_df() -> None:
             )
             output = subprocess.check_output(ps_cmd, shell=True).decode('cp866').strip()
 
-            headers = ["Диск", "ФС", "Размер", "Свободно"]
+            headers = ["Disk", "FS", "Size", "Free"]
             rows: List[list] = []
             for line in output.split('\n'):
                 parts = line.split()
@@ -112,21 +113,21 @@ def _run_df() -> None:
                         ])
             display_table(headers, rows)
         except Exception as e:  # noqa: BLE001
-            print(f"Ошибка PowerShell: {e}")
+            print(f"PowerShell error: {e}")
     else:
         print(_run_linux_cmd(['df', '-h']))
     print()
 
 
 def _run_free() -> None:
-    """Состояние оперативной памяти (кроссплатформенный)."""
+    """RAM status (cross-platform)."""
     theme_color = config.COLORS.get(
         getattr(config, 'THEME_COLOR', 'PURPLE'),
         config.COLORS["PURPLE"],
     )
     reset = config.COLORS["RESET"]
 
-    print(f"\n{theme_color}--- Мониторинг оперативной памяти ---{reset}")
+    print(f"\n{theme_color}--- RAM Monitor ---{reset}")
     if os.name == 'nt':
         try:
             ps_cmd = (
@@ -138,81 +139,81 @@ def _run_free() -> None:
             output = subprocess.check_output(ps_cmd, shell=True).decode('cp866').strip()
             if "|" in output:
                 total, free = output.split("|")
-                headers = ["Параметр", "Объем памяти (GB)"]
+                headers = ["Metric", "Memory (GB)"]
                 rows = [
-                    ["Всего памяти", total],
-                    ["Свободно памяти", free],
-                    ["Использовано", str(round(float(total) - float(free), 2))],
+                    ["Total memory", total],
+                    ["Free memory", free],
+                    ["Used", str(round(float(total) - float(free), 2))],
                 ]
                 display_table(headers, rows)
         except Exception as e:  # noqa: BLE001
-            print(f"Ошибка PowerShell: {e}")
+            print(f"PowerShell error: {e}")
     else:
         print(_run_linux_cmd(['free', '-h']))
     print()
 
 
 # ===========================================================================
-# Handler-функции (signature: cmd_xxx(args: list[str]) -> int)
+# Handler functions (signature: cmd_xxx(args: list[str]) -> int)
 # ===========================================================================
 
 def cmd_help(args: List[str]) -> int:
-    """help — таблица доступных команд (из core.interface)."""
+    """help — table of available commands (from core.interface)."""
     display_help()
     return 0
 
 
 def cmd_fetch(args: List[str]) -> int:
-    """fetch — перерисовать fastfetch-баннер."""
+    """fetch — redraw the fastfetch banner."""
     clear_screen()
     display_fastfetch(get_system_specs())
     return 0
 
 
 def cmd_clear(args: List[str]) -> int:
-    """clear — очистить экран."""
+    """clear — clear the screen."""
     clear_screen()
     return 0
 
 
 def cmd_center(args: List[str]) -> int:
-    """center — главное меню Citadel Center."""
+    """center — main Citadel Center menu."""
     run_citadel_center()
     return 0
 
 
 def cmd_pkg(args: List[str]) -> int:
-    """pkg — менеджер пакетов (install/remove/search/list/update)."""
+    """pkg — package manager (install/remove/search/list/update)."""
     run_package_manager(args)
     return 0
 
 
 def cmd_netscan(args: List[str]) -> int:
-    """netscan — сканирование локальной сети."""
+    """netscan — scan the local network."""
     scan_network()
     return 0
 
 
 def cmd_ping(args: List[str]) -> int:
-    """ping — интерактивный ping хоста."""
+    """ping — interactive host ping."""
     ping_host()
     return 0
 
 
 def cmd_ip(args: List[str]) -> int:
-    """ip — сетевые интерфейсы."""
+    """ip — network interfaces."""
     display_interfaces()
     return 0
 
 
 def cmd_sysmon(args: List[str]) -> int:
-    """sysmon — системный монитор (CPU/RAM/Network)."""
+    """sysmon — system monitor (CPU/RAM/Network)."""
     run_system_monitor()
     return 0
 
 
 def cmd_ps(args: List[str]) -> int:
-    """ps — таблица процессов."""
+    """ps — process table."""
     headers, rows = get_process_list()
     display_table(headers, rows)
     print()
@@ -221,18 +222,18 @@ def cmd_ps(args: List[str]) -> int:
 
 def cmd_kill(args: List[str]) -> int:
     """
-    kill <PID> — завершить процесс по PID.
+    kill <PID> — terminate a process by PID.
 
-    External-имя `kill` перехватывается здесь ДО fallback'а в shell_utils.py
-    (строки 376-383) и ДО jkill-маршрутизации. Регистрация в BUILTIN_HANDLERS
-    происходит первой — см. register_all().
+    The external name `kill` is intercepted here BEFORE the fallback in
+    shell_utils.py (lines 376-383) and BEFORE jkill routing. It is
+    registered first in BUILTIN_HANDLERS — see register_all().
     """
     red = config.COLORS["RED"]
     green = config.COLORS["GREEN"]
     reset = config.COLORS["RESET"]
 
     if not args:
-        print("Укажите PID процесса.\n")
+        print("Specify a process PID.\n")
         return 2
     success, msg = kill_process(args[0])
     if success:
@@ -243,62 +244,62 @@ def cmd_kill(args: List[str]) -> int:
 
 
 def cmd_df(args: List[str]) -> int:
-    """df — свободное место на дисках."""
+    """df — free disk space."""
     _run_df()
     return 0
 
 
 def cmd_free(args: List[str]) -> int:
-    """free — состояние оперативной памяти."""
+    """free — RAM status."""
     _run_free()
     return 0
 
 
 def cmd_files(args: List[str]) -> int:
-    """files — файловый менеджер."""
+    """files — file manager."""
     run_file_browser()
     return 0
 
 
 def cmd_notes(args: List[str]) -> int:
-    """notes — приложение заметок."""
+    """notes — notes application."""
     run_notes_app()
     return 0
 
 
 def cmd_crypto(args: List[str]) -> int:
-    """crypto — модуль шифрования."""
+    """crypto — encryption module."""
     run_crypto_module()
     return 0
 
 
 def cmd_passgen(args: List[str]) -> int:
-    """passgen — генератор паролей."""
+    """passgen — password generator."""
     run_passgen()
     return 0
 
 
 def cmd_launcher(args: List[str]) -> int:
-    """launcher — запуск внешних команд/приложений."""
+    """launcher — run external commands/applications."""
     run_command_launcher()
     return 0
 
 
 def cmd_recovery(args: List[str]) -> int:
-    """recovery — меню восстановления системы."""
+    """recovery — system recovery menu."""
     run_recovery_menu()
     return 0
 
 
 def cmd_history(args: List[str]) -> int:
     """
-    history — сессионный список (legacy-формат: idx  cmd).
+    history — session list (legacy format: idx  cmd).
 
-    Источник: CMD_HISTORY, наполняется из main.py. Встроенный `history`
-    в shell_utils (HistoryManager-формат с timestamp/exit_code) НЕ
-    используется — наш handler перехватывает раньше через _try_builtin().
+    Source: CMD_HISTORY, populated from main.py. The built-in `history`
+    in shell_utils (HistoryManager format with timestamp/exit_code) is
+    NOT used — our handler intercepts earlier via _try_builtin().
     """
-    print("\n=== ИСТОРИЯ КОМАНД СЕССИИ ===")
+    print("\n=== SESSION COMMAND HISTORY ===")
     for idx, h_cmd in enumerate(CMD_HISTORY, 1):
         print(f"  {idx:<4} {h_cmd}")
     print()
@@ -306,18 +307,18 @@ def cmd_history(args: List[str]) -> int:
 
 
 def cmd_weather(args: List[str]) -> int:
-    """weather — прогноз погоды (по последней известной локации)."""
+    """weather — weather forecast (based on the last known location)."""
     run_weather_app()
     return 0
 
 
 def cmd_geo(args: List[str]) -> int:
-    """geo [refresh] — определение местоположения по IP."""
-    print(f"{config.COLORS['CYAN']}[ INFO ]: Определяю местоположение...{config.COLORS['RESET']}")
+    """geo [refresh] — determine location by IP."""
+    print(f"{config.COLORS['CYAN']}[ INFO ]: Detecting location...{config.COLORS['RESET']}")
     loc = get_location(force_refresh="refresh" in args)
     if not loc:
-        print(f"{config.COLORS['RED']}[ ERROR ]: Не удалось определить локацию. "
-              f"Проверьте интернет.{config.COLORS['RESET']}")
+        print(f"{config.COLORS['RED']}[ ERROR ]: Could not determine location. "
+              f"Check your internet connection.{config.COLORS['RESET']}")
         return 1
     print()
     print(format_location(loc))
@@ -326,16 +327,16 @@ def cmd_geo(args: List[str]) -> int:
 
 
 def cmd_log(args: List[str]) -> int:
-    """log [N] — последние N строк журнала безопасности (по умолчанию 20)."""
+    """log [N] — last N lines of the security log (default 20)."""
     try:
         n = int(args[0]) if args else 20
     except ValueError:
         n = 20
     lines = tail_log(n)
     if not lines:
-        print("(лог пуст или недоступен)")
+        print("(log is empty or unavailable)")
         return 0
-    print(f"\n=== ПОСЛЕДНИЕ {len(lines)} ЗАПИСЕЙ ЖУРНАЛА ===")
+    print(f"\n=== LAST {len(lines)} LOG ENTRIES ===")
     for ln in lines:
         print(ln)
     print()
@@ -344,18 +345,18 @@ def cmd_log(args: List[str]) -> int:
 
 def cmd_alias(args: List[str]) -> int:
     """
-    alias [list | add NAME BODY | remove NAME] — управление алиасами.
+    alias [list | add NAME BODY | remove NAME] — manage aliases.
 
-    В shell_utils._builtin_alias уже есть похожий handler, но мы
-    переопределяем ради legacy-формата вывода (system.user_config API
-    и русскоязычные подсказки).
+    shell_utils._builtin_alias already has a similar handler, but we
+    override it to keep the legacy output format (system.user_config API
+    and localized hints).
     """
     if not args or args[0] in ("list", "-l"):
         aliases = get_aliases()
         if not aliases:
-            print("Алиасов пока нет. Добавьте: alias add <имя> <команда>")
+            print("No aliases yet. Add one: alias add <name> <command>")
             return 0
-        print("\n=== АЛИАСЫ КОМАНД ===")
+        print("\n=== COMMAND ALIASES ===")
         for name, body in sorted(aliases.items()):
             print(f"  {name:<12} → {body}")
         print()
@@ -364,40 +365,40 @@ def cmd_alias(args: List[str]) -> int:
     if args[0] == "add" and len(args) >= 3:
         name, body = args[1], " ".join(args[2:])
         if add_alias(name, body):
-            print(f"[ OK ] Алиас '{name}' → '{body}' добавлен.")
+            print(f"[ OK ] Alias '{name}' → '{body}' added.")
             return 0
-        print("[ ERROR ] Не удалось сохранить алиас.")
+        print("[ ERROR ] Could not save alias.")
         return 1
 
     if args[0] in ("remove", "rm", "del") and len(args) >= 2:
         if remove_alias(args[1]):
-            print(f"[ OK ] Алиас '{args[1]}' удалён.")
+            print(f"[ OK ] Alias '{args[1]}' removed.")
             return 0
-        print(f"[ INFO ] Алиас '{args[1]}' не найден.")
+        print(f"[ INFO ] Alias '{args[1]}' not found.")
         return 1
 
-    print("Использование:")
-    print("  alias list                    — список всех алиасов")
-    print("  alias add <имя> <команда>     — добавить/обновить алиас")
-    print("  alias remove <имя>            — удалить алиас")
+    print("Usage:")
+    print("  alias list                    — list all aliases")
+    print("  alias add <name> <command>    — add/update an alias")
+    print("  alias remove <name>           — remove an alias")
     return 2
 
 
 def cmd_lock(args: List[str]) -> int:
-    """lock — повторная аутентификация (не выходя из сессии)."""
+    """lock — re-authenticate without leaving the session."""
     yellow = config.COLORS["YELLOW"]
     green = config.COLORS["GREEN"]
     reset = config.COLORS["RESET"]
 
-    print(f"{yellow}[ LOCK ]: Запрошена повторная аутентификация...{reset}")
+    print(f"{yellow}[ LOCK ]: Re-authentication requested...{reset}")
     log_security("Screen lock requested by user")
     login_screen()
-    print(f"{green}[ OK ]: Сессия разблокирована.{reset}")
+    print(f"{green}[ OK ]: Session unlocked.{reset}")
     return 0
 
 
 def cmd_ls(args: List[str]) -> int:
-    """ls — список файлов в текущей директории (с цветовой маркировкой)."""
+    """ls — list files in the current directory (with color coding)."""
     blue = config.COLORS["BLUE"]
     reset = config.COLORS["RESET"]
     try:
@@ -410,34 +411,34 @@ def cmd_ls(args: List[str]) -> int:
                 print(f"       {item}")
         print()
     except Exception as e:  # noqa: BLE001
-        print(f"Ошибка: {e}\n")
+        print(f"Error: {e}\n")
         return 1
     return 0
 
 
 def cmd_cat(args: List[str]) -> int:
-    """cat <file> — вывести содержимое текстового файла."""
+    """cat <file> — print the contents of a text file."""
     if not args:
-        print("Укажите файл.\n")
+        print("Specify a file.\n")
         return 2
     try:
         with open(args[0], "r", encoding="utf-8", errors="ignore") as f:
             print(f"\n--- {args[0]} ---\n{f.read()}\n----------------\n")
     except Exception as e:  # noqa: BLE001
-        print(f"Ошибка: {e}\n")
+        print(f"Error: {e}\n")
         return 1
     return 0
 
 
 def cmd_cd(args: List[str]) -> int:
     """
-    cd [path] — сменить рабочую директорию.
+    cd [path] — change the working directory.
 
-    ВАЖНО: _try_builtin() в core.shell_utils.run_command() срабатывает РАНЬШЕ,
-    чем hardcoded-ветка `if argv[0] == "cd":` (run_command:322). Поэтому,
-    если `cd` зарегистрирован как builtin (мы так делаем), наш handler
-    затеняет встроенный и должен сам повторить его логику: раскрыть `~`,
-    обновить VariableStore.PWD, корректно обработать ошибки.
+    IMPORTANT: _try_builtin() in core.shell_utils.run_command() fires
+    EARLIER than the hardcoded branch `if argv[0] == "cd":` (run_command:322).
+    Therefore, if `cd` is registered as a builtin (which we do), our handler
+    shadows the built-in and must repeat its logic: expand `~`, update
+    VariableStore.PWD, and handle errors correctly.
     """
     target = args[0] if args else os.path.expanduser("~")
     if target == "~" or target.startswith("~/"):
@@ -449,7 +450,7 @@ def cmd_cd(args: List[str]) -> int:
         os.chdir(expanded)
         store.refresh_pwd(os.getcwd())
     except FileNotFoundError:
-        print(f"cd: нет такой директории: {target}\n")
+        print(f"cd: no such directory: {target}\n")
         return 1
     except OSError as e:
         print(f"cd: {e}\n")
@@ -458,16 +459,16 @@ def cmd_cd(args: List[str]) -> int:
 
 
 # ===========================================================================
-# Реестр handler'ов
+# Handler registry
 # ===========================================================================
 
 BUILTIN_HANDLERS = {
-    # Базовые Citadel-команды (help/clear/fetch — перезаписываем
-    # облегчённые версии из core.repl._register_default_builtins).
+    # Basic Citadel commands (help/clear/fetch override the lighter
+    # versions from core.repl._register_default_builtins).
     "help":    cmd_help,
     "fetch":   cmd_fetch,
     "clear":   cmd_clear,
-    # Системные
+    # System
     "center":  cmd_center,
     "pkg":     cmd_pkg,
     "netscan": cmd_netscan,
@@ -475,7 +476,7 @@ BUILTIN_HANDLERS = {
     "ip":      cmd_ip,
     "sysmon":  cmd_sysmon,
     "ps":      cmd_ps,
-    "kill":    cmd_kill,        # ← override: PID, не jkill
+    "kill":    cmd_kill,        # ← override: PID, not jkill
     "df":      cmd_df,
     "free":    cmd_free,
     "files":   cmd_files,
@@ -484,57 +485,57 @@ BUILTIN_HANDLERS = {
     "passgen": cmd_passgen,
     "launcher": cmd_launcher,
     "recovery": cmd_recovery,
-    "history": cmd_history,     # ← override: legacy-формат
+    "history": cmd_history,     # ← override: legacy format
     "weather": cmd_weather,
     "geo":     cmd_geo,
     "log":     cmd_log,
-    "alias":   cmd_alias,       # ← override: legacy-формат
+    "alias":   cmd_alias,       # ← override: legacy format
     "lock":    cmd_lock,
     "ls":      cmd_ls,
-    "cd":      cmd_cd,          # ← no-op: реальный cd в run_command()
+    "cd":      cmd_cd,          # ← no-op: real cd lives in run_command()
     "cat":     cmd_cat,
-    # exit/q/quit НЕ регистрируем — их держит core.repl (sentinel -1).
+    # exit/q/quit are NOT registered — core.repl keeps them (sentinel -1).
 }
 
 def register_all(shell_utils_module) -> None:
     """
-    Зарегистрировать все handler'ы из BUILTIN_HANDLERS в shell_utils.
+    Register all handlers from BUILTIN_HANDLERS in shell_utils.
     """
-    # 1. Регистрируем основной массив команд из словаря
+    # 1. Register the main command array from the dictionary
     for name, handler in BUILTIN_HANDLERS.items():
         shell_utils_module.register_builtin(name, handler)
-    
-    # 2. Регистрируем нашу новую системную команду условий вне цикла
+
+    # 2. Register our new system condition command outside the loop
     shell_utils_module.register_builtin("[[", cmd_test_brackets)
-    # Регистрируем true и false
+    # Register true and false
     shell_utils_module.register_builtin("true", cmd_true)
     shell_utils_module.register_builtin("false", cmd_false)
 
 
 def cmd_test_brackets(args: list[str]) -> bool:
     """
-    Встроенная команда [[ ... ]] для проверки условий.
-    Вызывается как: [[ -f file ]] или [[ X -gt 5 ]]
+    Built-in command [[ ... ]] for condition testing.
+    Called as: [[ -f file ]] or [[ X -gt 5 ]]
     """
     if not args:
         return False
-        
-    # Собираем все аргументы обратно в строку условия
-    # Если на конце осталась закрывающая скобка ']]', отрезаем её
+
+    # Reassemble all arguments back into a single condition string.
+    # If there's a trailing closing bracket ']]', strip it off.
     cond_str = " ".join(args)
     if cond_str.endswith("]]"):
         cond_str = cond_str[:-2].strip()
-        
-    # Запускаем наш движок условий
+
+    # Run our condition engine
     result = eval_test_condition(cond_str)
-    
-    # Возвращаем True/False в логику шелла
+
+    # Return True/False to the shell logic
     return result
 
 def cmd_true(args: list[str]) -> int:
-    """Встроенная команда true: всегда возвращает 0 (успех)."""
+    """Built-in true command: always returns 0 (success)."""
     return 0
 
 def cmd_false(args: list[str]) -> int:
-    """Встроенная команда false: всегда возвращает 1 (ошибка)."""
+    """Built-in false command: always returns 1 (error)."""
     return 1

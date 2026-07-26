@@ -2,14 +2,17 @@
 Модуль логирования действий пользователя в Citadel OS.
 
 Записывает все команды, а также критические события (вход/выход, ошибки авторизации)
-в system/citadel.log. Ротация по размеру — при превышении MAX_BYTES старый файл
-переименовывается в citadel.log.1 и начинается новый.
+в $CITADEL_LOG_FILE (по умолчанию /var/log/citadel.log в production, system/citadel.log
+в dev). Ротация по размеру — при превышении MAX_BYTES старый файл переименовывается
+в citadel.log.1 и начинается новый.
 """
 import os
 import time
 from datetime import datetime
 
-LOG_PATH = "system/citadel.log"
+import config
+
+LOG_PATH = getattr(config, "CITADEL_LOG_FILE", "system/citadel.log")
 MAX_BYTES = 512 * 1024  # 512 KiB — предел, после которого лог ротируется
 BACKUP_COUNT = 3  # хранить до 3 архивных логов
 

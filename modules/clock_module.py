@@ -2,18 +2,18 @@
 modules/clock_module.py
 =======================
 
-ClockModule — минимальный пример HUD-модуля, который АВТОМАТИЧЕСКИ
-подхватывает смену темы через ThemeState, без собственного опроса времени
-и без переписывания при появлении новых тем.
+ClockModule is a minimal example of a HUD module that AUTOMATICALLY
+picks up theme changes via ThemeState, without its own time polling
+and without rewriting when new themes appear.
 
-Демонстрирует три паттерна интеграции:
-    1. Отрисовка через DrawUtils.get_styled_color() — никаких
-       config.COLORS[...] напрямую.
-    2. Подписка на смену темы через ThemeState.subscribe() — для
-       побочных эффектов (например, обновить заголовок окна, пересчитать
-       кэшированный ANSI-код).
-    3. Не иметь собственного состояния «текущей темы» — всегда читать
-       из ThemeState в момент отрисовки.
+It demonstrates three integration patterns:
+    1. Rendering via DrawUtils.get_styled_color() - no direct
+       config.COLORS[...] access.
+    2. Subscribing to theme changes via ThemeState.subscribe() - for
+       side effects (e.g. update the window title, recompute a
+       cached ANSI code).
+    3. Do not keep your own "current theme" state - always read from
+       ThemeState at the moment of rendering.
 """
 
 from __future__ import annotations
@@ -28,14 +28,14 @@ from rendering.draw_utils import get_styled_color
 
 
 class ClockModule(IHUDModule):
-    """Часы с тематизацией под окружение."""
+    """A clock themed to the surrounding environment."""
 
     name = "clock"
 
     def __init__(self) -> None:
         self._state = get_theme_state()
-        # Снимок последней увиденной темы — полезно для отладки
-        # и для модулей, у которых ДОРОГО пересчитывать цвет в render().
+        # Snapshot of the last seen theme - useful for debugging
+        # and for modules where it is EXPENSIVE to recompute the color in render().
         self._last_theme: Theme = self._state.current_theme
         self._cached_palette: Palette = self._state.current_palette
         self._unsubscribe: Optional[Callable[[], None]] = None
@@ -44,25 +44,25 @@ class ClockModule(IHUDModule):
     # ------------------------------------------------------------------ IHUD
 
     def start(self) -> None:
-        # Подписка на смену темы — главный «автоматический» крючок.
+        # Subscription to theme changes - the main "automatic" hook.
         if self._unsubscribe is None:
             self._unsubscribe = self._state.subscribe(self._on_theme_changed)
 
     def update(self, dt: float) -> None:
-        # Часы сами по себе не требуют update-логики — они «пассивны».
-        # Здесь можно было бы дёргать tick(), но render() читает время
-        # непосредственно при отрисовке — этого достаточно.
+        # The clock itself does not require update logic - it is "passive".
+        # We could call tick() here, but render() reads the time
+        # directly at render time - that is enough.
         return None
 
     def render(self, surface=None) -> None:
         """
-        Отрисовка часов. Все цвета идут через get_styled_color(), поэтому
-        смена темы ВЛИЯЕТ на вывод без каких-либо действий в этом методе.
+        Render the clock. All colors go through get_styled_color(), so a
+        theme change AFFECTS the output without any action inside this method.
         """
         now = datetime.now().strftime("%H:%M:%S")
-        # Ключевая строка: ни одного прямого обращения к config.COLORS.
-        # Если пользователь переключит тему через EnvAwarenessModule —
-        # следующий render() автоматически отрисует часы в новом цвете.
+        # Key line: not a single direct access to config.COLORS.
+        # If the user switches the theme via EnvAwarenessModule -
+        # the next render() will automatically render the clock in the new color.
         color = get_styled_color("WHITE")
         reset = self._cached_palette.reset
         print(f"  {color}[CLOCK]{reset} {now}")
@@ -83,9 +83,9 @@ class ClockModule(IHUDModule):
 
     def _on_theme_changed(self, new_theme: Theme, palette: Palette) -> None:
         """
-        Callback подписки. Вызывается ThemeState при СМЕНЕ темы, не на
-        каждый кадр. Здесь мы обновляем кэшированную палитру, чтобы
-        render() не делал lookup в ThemeState на каждом вызове.
+        Subscription callback. Called by ThemeState on a theme CHANGE, not
+        every frame. Here we update the cached palette so that render()
+        does not look up ThemeState on every call.
         """
         with self._lock:
             self._last_theme = new_theme

@@ -59,12 +59,12 @@ def terminal_print(text, delay=None, color_code=None):
         time.sleep(delay)
     sys.stdout.write(config.COLORS["RESET"] + "\n")
 
-def display_progress_bar(duration, task_name="Загрузка"):
-    """Красивый анимированный индикатор загрузки (Progress Bar)"""
+def display_progress_bar(duration, task_name="Loading"):
+    """Nice animated progress bar."""
     steps = 30
     sleep_time = duration / steps
     theme_color = get_theme_color()
-    
+
     sys.stdout.write(f"{config.COLORS['GRAY']}[ INFO ]: {task_name}... {config.COLORS['RESET']}\n")
     for i in range(steps + 1):
         percent = int((i / steps) * 100)
@@ -74,7 +74,7 @@ def display_progress_bar(duration, task_name="Загрузка"):
         sys.stdout.write(f"\r  {config.COLORS['CYAN']}[{bar}{config.COLORS['CYAN']}] {percent}%")
         sys.stdout.flush()
         time.sleep(sleep_time)
-    sys.stdout.write(f"\n{config.COLORS['GREEN']}[ SUCCESS ]: {task_name} завершено успешно!{config.COLORS['RESET']}\n\n")
+    sys.stdout.write(f"\n{config.COLORS['GREEN']}[ SUCCESS ]: {task_name} completed successfully!{config.COLORS['RESET']}\n\n")
 
 def _supports_unicode():
     """Проверяет, поддерживает ли текущий терминал Unicode"""
@@ -139,7 +139,7 @@ def display_fastfetch(sys_info):
                 sys.stdout.write(line)
             print(reset)
         except Exception:
-            print(f"{config.COLORS['RED']}[ Ошибка загрузки logo.txt ]{reset}\n")
+            print(f"{config.COLORS['RED']}[ Error loading logo.txt ]{reset}\n")
     else:
         # Резервный логотип, если logo.txt отсутствует
         print(f"{theme_color}")
@@ -148,16 +148,16 @@ def display_fastfetch(sys_info):
         print("| |   | | __| __| | | | |  _| | |    ")
         print("| |___| | |_| |_| | |_| | |___| |___ ")
         print(" \\____|_|\\__|\\__|_|____/|_____|_____|")
-        print(f"        CITADEL SYSTEM CORE v{config.VERSION}{reset}\n")
+        print(f"        CITADEL SYSTEM CORE v{getattr(config, 'CORE_VERSION', '3.0')}{reset}\n")
 
     user_str = f"{config.USER_NAME}@citadel-core"
-    ver_str = f"Citadel OS v{config.VERSION}"
+    ver_str = f"Citadel OS v{config.VERSION} (Core {config.CORE_VERSION})"
     cpu_str = sys_info.get('cpu_model', 'N/A')
     ram_str = sys_info.get('memory', 'N/A')
     uptime_str = sys_info.get('uptime', 'N/A')
     host_str = "Citadel Kernel Node"
     
-    print(f" {purple}╔═════════════════════ СИСТЕМНАЯ СВОДКА CITADEL OS ═════════════════════╗{reset}")
+    print(f" {purple}╔═════════════════════ CITADEL OS SYSTEM OVERVIEW ═════════════════════╗{reset}")
     print(f"  {green} USER:{reset} {user_str:<25} |  {green}OS:{reset} {ver_str}")
     print(f"  {green} CPU:{reset} {cpu_str:<26} |  {green}HOST:{reset} {host_str}")
     print(f"  {green} RAM:{reset} {ram_str:<26} |  {green}UPTIME:{reset} {uptime_str}")
@@ -268,38 +268,38 @@ def get_registry() -> ModuleRegistry:
 
 
 def display_help():
-    """Вывод таблицы со всеми доступными командами ОС"""
+    """Display a table of all available OS commands."""
     theme_color = get_theme_color()
     reset = config.COLORS["RESET"]
     cyan = config.COLORS["CYAN"]
-    
-    print(f"=== {theme_color}ДОСТУПНЫЕ КОМАНДЫ CITADEL OS{reset} ===")
+
+    print(f"=== {theme_color}AVAILABLE CITADEL OS COMMANDS{reset} ===")
     print("-" * 75)
     commands = [
-        ("fetch", "Повторный вызов системной сводки FastFetch с логотипом"),
-        ("center", "Citadel Center - интерактивный пульт управления системой"),
-        ("pkg", "Управление пакетами (install <p>, update, search <p>, remove <p>)"),
-        ("netscan", "Сканирование устройств локальной сети (Network Center)"),
-        ("ip", "Просмотр сетевых интерфейсов и IP-адресов"),
-        ("sysmon", "Мониторинг ресурсов процессора и оперативной памяти"),
-        ("ps", "Список активных процессов в системе"),
-        ("kill <PID>", "Принудительное завершение процесса по PID"),
-        ("df", "Мониторинг дискового пространства"),
-        ("files", "Интерактивный файловый менеджер (навигация, просмотр)"),
-        ("notes", "Приложение для ведения заметок (создание, чтение, список)"),
-        ("crypto", "Модуль шифрования/дешифрования данных (AES-128 + HMAC)"),
-        ("passgen", "Генератор безопасных паролей"),
-        ("weather", "Погода: авто-определение по IP, прогноз на 3 дня"),
-        ("geo", "Определить местоположение по IP-адресу"),
-        ("log [N]", "Последние N строк журнала событий"),
-        ("alias ...", "Управление алиасами (list/add/remove)"),
-        ("lock", "Повторно запросить пароль (блокировка экрана)"),
-        ("launcher", "Быстрый запуск внешних приложений разработчика"),
-        ("recovery", "Система резервного копирования и восстановления Citadel"),
-        ("history", "Просмотр истории команд текущей сессии"),
-        ("clear", "Очистить экран терминала"),
-        ("help", "Показать эту справку по командам"),
-        ("exit / q", "Безопасное завершение сессии и выход")
+        ("fetch", "Re-run the FastFetch system overview with the logo"),
+        ("center", "Citadel Center — interactive system control hub"),
+        ("pkg", "Package manager (install <p>, update, search <p>, remove <p>)"),
+        ("netscan", "Scan devices on the local network (Network Center)"),
+        ("ip", "Show network interfaces and IP addresses"),
+        ("sysmon", "Monitor CPU and RAM resources"),
+        ("ps", "List active processes on the system"),
+        ("kill <PID>", "Force-terminate a process by PID"),
+        ("df", "Monitor disk space"),
+        ("files", "Interactive file manager (navigation, viewing)"),
+        ("notes", "Notes application (create, read, list)"),
+        ("crypto", "Data encryption/decryption module (AES-128 + HMAC)"),
+        ("passgen", "Secure password generator"),
+        ("weather", "Weather: auto-detect by IP, 3-day forecast"),
+        ("geo", "Detect location by IP address"),
+        ("log [N]", "Last N lines of the event log"),
+        ("alias ...", "Manage aliases (list/add/remove)"),
+        ("lock", "Re-prompt for the password (screen lock)"),
+        ("launcher", "Quick launch of developer external apps"),
+        ("recovery", "Citadel backup and restore system"),
+        ("history", "Show the current session's command history"),
+        ("clear", "Clear the terminal screen"),
+        ("help", "Show this command reference"),
+        ("exit / q", "Safely end the session and quit")
     ]
     for cmd, desc in commands:
         print(f"  {cyan}{cmd:<15}{reset} - {desc}")

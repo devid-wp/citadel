@@ -42,7 +42,7 @@ def _hr(title: str) -> None:
 
 
 def scenario_by_hour() -> None:
-    _hr("Сценарий 1: тема по часу суток")
+    _hr("Scenario 1: theme by time of day")
     reset_theme_state_for_tests()
     state = get_theme_state()
     samples = [(0, "NIGHT"), (5, "NIGHT"), (6, "DAY"), (12, "DAY"),
@@ -56,25 +56,25 @@ def scenario_by_hour() -> None:
 
 
 def scenario_red_shift() -> None:
-    _hr("Сценарий 2: Red-shift белого в NIGHT")
+    _hr("Scenario 2: Red-shift of white in NIGHT")
     reset_theme_state_for_tests()
     state = get_theme_state()
 
-    # DAY — без изменений
+    # DAY — no change
     state.set_theme(Theme.DAY)
     white_day = apply_theme_filter((255, 255, 255), Theme.DAY)
     print(f"DAY  white → {white_day}")
 
-    # EVENING — лёгкое затемнение + тёплый сдвиг
+    # EVENING — slight darkening + warm shift
     state.set_theme(Theme.EVENING)
     white_eve = apply_theme_filter((255, 255, 255), Theme.EVENING)
     print(f"EVE  white → {white_eve}")
 
-    # NIGHT — red-shift (ТЗ: белый → мягкий красный)
+    # NIGHT — red-shift (spec: white → soft red)
     state.set_theme(Theme.NIGHT)
     white_night = apply_theme_filter((255, 255, 255), Theme.NIGHT)
     print(f"NIGHT white → {white_night}")
-    # Ожидаемо: G≈81, B≈81, R=255
+    # Expected: G≈81, B≈81, R=255
     assert white_night[0] == 255, "Red channel must stay max"
     assert white_night[1] <= 100, f"Green must be reduced, got {white_night[1]}"
     assert white_night[2] <= 100, f"Blue must be reduced, got {white_night[2]}"
@@ -82,20 +82,20 @@ def scenario_red_shift() -> None:
 
 
 def scenario_render_output() -> None:
-    _hr("Сценарий 3: get_styled_color() под каждой темой")
+    _hr("Scenario 3: get_styled_color() under each theme")
     reset_theme_state_for_tests()
     state = get_theme_state()
     for theme in (Theme.DAY, Theme.EVENING, Theme.NIGHT):
         state.set_theme(theme)
         print(f"-- {theme.value} --")
-        # Логический цвет WHITE, разные темы → разные ANSI-коды
+        # Logical color WHITE, different themes → different ANSI codes
         ansi = get_styled_color("WHITE")
         print(f"  WHITE  → {ansi!r} (bytes={ansi.encode()!r})")
-        styled_print("Цифровые часы HUD активны.", "WHITE")
+        styled_print("HUD digital clock is active.", "WHITE")
 
 
 def scenario_concurrent() -> None:
-    _hr("Сценарий 4: потокобезопасность (100 переключений из 4 потоков)")
+    _hr("Scenario 4: thread safety (100 switches from 4 threads)")
     reset_theme_state_for_tests()
     state = get_theme_state()
     received = []
@@ -120,14 +120,14 @@ def scenario_concurrent() -> None:
         t.join()
 
     unsub()
-    print(f"  получено уведомлений: {len(received)}")
+    print(f"  notifications received: {len(received)}")
     assert len(received) > 0, "subscribers should have been notified"
-    print(f"  первое уведомление: {received[0].value}")
-    print(f"  последнее:          {received[-1].value}")
+    print(f"  first notification: {received[0].value}")
+    print(f"  last:               {received[-1].value}")
 
 
 def scenario_live_module() -> None:
-    _hr("Сценарий 5: живой модуль EnvAwarenessModule + ClockModule")
+    _hr("Scenario 5: live EnvAwarenessModule + ClockModule")
     reset_theme_state_for_tests()
     env = EnvAwarenessModule(check_interval=0.2)
     clock = ClockModule()
@@ -135,17 +135,17 @@ def scenario_live_module() -> None:
     clock.start()
 
     print(f"  now={datetime.now().strftime('%H:%M:%S')}")
-    print(f"  текущая тема: {get_theme_state().current_theme.value}")
+    print(f"  current theme: {get_theme_state().current_theme.value}")
     clock.render()
 
-    # Симулируем «прыжок во времени» через прямой вызов API
+    # Simulate a "time jump" via direct API call
     state = get_theme_state()
-    print("\n  форсируем тему NIGHT (имитация 23:00):")
+    print("\n  forcing NIGHT theme (simulating 23:00):")
     state.set_theme(Theme.NIGHT)
     time.sleep(0.05)
     clock.render()
 
-    print("\n  форсируем тему EVENING (имитация 19:00):")
+    print("\n  forcing EVENING theme (simulating 19:00):")
     state.set_theme(Theme.EVENING)
     time.sleep(0.05)
     clock.render()
@@ -156,9 +156,9 @@ def scenario_live_module() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Smoke test for theme system")
-    parser.add_argument("--hour", type=int, help="Проверить конкретный час (0..23)")
+    parser.add_argument("--hour", type=int, help="Check a specific hour (0..23)")
     parser.add_argument("--concurrent", action="store_true",
-                        help="Только сценарий потокобезопасности")
+                        help="Run only the thread-safety scenario")
     args = parser.parse_args()
 
     if args.concurrent:
@@ -174,7 +174,7 @@ def main() -> None:
     scenario_render_output()
     scenario_concurrent()
     scenario_live_module()
-    print("\n[ OK ] все сценарии прошли.\n")
+    print("\n[ OK ] all scenarios passed.\n")
 
 
 if __name__ == "__main__":

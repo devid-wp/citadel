@@ -1,17 +1,17 @@
 """
-Тесты Citadel OS v3.0.
+Citadel OS v1.0 (Core 3.0) tests.
 
-Запуск:
+Run:
     python test_all.py
 
-Или для pytest-стиля:
+Or in pytest style:
     pytest test_all.py
 """
 import os
 import sys
 import tempfile
 
-# Гарантируем, что текущая директория — корень проекта
+# Make sure the current directory is the project root
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -99,7 +99,7 @@ except ValueError as e:
 
 # ---------------------------------------------------------------------------
 banner("Crypto Module (file round-trip)")
-# Создаём временный файл и шифруем/расшифровываем
+# Create a temporary file and encrypt/decrypt it
 tmpf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8')
 tmpf.write("Sensitive content: secret data")
 tmpf.close()
@@ -108,7 +108,7 @@ try:
     ok, msg = encrypt_file(tmpf.name, "test-pass")
     assert ok, f"encrypt_file failed: {msg}"
     print('Encrypted file:', msg)
-    # Содержимое теперь должно быть нечитаемым
+    # The contents should now be unreadable
     with open(tmpf.name, 'rb') as f:
         encrypted_raw = f.read()
     assert b"sensitive" not in encrypted_raw.lower(), "Plain text leaked in encrypted file"
@@ -128,7 +128,7 @@ banner("User Config (JSON storage)")
 from system.user_config import (
     get_user_pref, set_user_pref, add_alias, remove_alias, get_aliases
 )
-# Сначала запоминаем текущие алиасы, чтобы не испортить
+# First, remember the current aliases so we don't break them
 saved_aliases = dict(get_aliases())
 try:
     add_alias("test_alias", "echo test")
@@ -144,13 +144,13 @@ try:
     val = get_user_pref("test_pref")
     assert val == 42
     print('OK: pref saved and loaded')
-    # Удаляем тестовые ключи
+    # Remove test keys
     from system.user_config import _load_raw, _save_raw
     data = _load_raw()
     data.pop("test_pref", None)
     _save_raw(data)
 finally:
-    # Восстанавливаем исходные алиасы
+    # Restore the original aliases
     from system.user_config import _load_raw, _save_raw
     data = _load_raw()
     data["aliases"] = saved_aliases
@@ -183,14 +183,14 @@ else:
 # ---------------------------------------------------------------------------
 banner("Weather helpers (no network needed)")
 from apps.weather import describe_wmo, _wind_direction
-print("WMO 0:", describe_wmo(0))   # ("Ясно", "☀️")
-print("WMO 95:", describe_wmo(95)) # ("Гроза", "⛈️")
+print("WMO 0:", describe_wmo(0))   # ("Clear", "☀️")
+print("WMO 95:", describe_wmo(95)) # ("Thunderstorm", "⛈️")
 print("WMO 999:", describe_wmo(999))  # fallback
-print("Wind 0°:", _wind_direction(0))    # С
-print("Wind 90°:", _wind_direction(90))  # В
-print("Wind 180°:", _wind_direction(180)) # Ю
-assert describe_wmo(0)[0] == "Ясно"
-assert _wind_direction(0) == "С"
+print("Wind 0°:", _wind_direction(0))    # N
+print("Wind 90°:", _wind_direction(90))  # E
+print("Wind 180°:", _wind_direction(180)) # S
+assert describe_wmo(0)[0] == "Clear"
+assert _wind_direction(0) == "N"
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +202,7 @@ try:
     add_alias("test_x", "echo Y")
     assert resolve_command("test_x") == "echo Y"
     assert resolve_command("test_x arg1") == "echo Y arg1"
-    assert resolve_command("ls") == "ls"  # не-алиас остаётся как есть
+    assert resolve_command("ls") == "ls"  # non-alias stays as is
     print('OK: aliases resolved correctly')
 finally:
     from system.user_config import _load_raw, _save_raw

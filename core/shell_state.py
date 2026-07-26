@@ -23,7 +23,8 @@ from typing import Dict, Iterable
 
 # Встроенные переменные Citadel — инициализируются при первом get/set.
 _BUILTINS: Dict[str, str] = {
-    "CITADEL_VERSION": "3.0",
+    "CITADEL_VERSION": "1.0",          # публичная версия релиза
+    "CITADEL_CORE_VERSION": "3.0",     # версия движка
     "CITADEL_HOME": "",       # будет проставлено из os.path.expanduser("~")
     "CITADEL_PID": "",        # str(os.getpid())
     "USER": "",               # os.environ.get("USER", "citadel")

@@ -38,31 +38,31 @@ def generate_password(length, use_upper=True, use_lower=True, use_digits=True, u
     return "".join(mandatory)
 
 def run_passgen():
-    """Интерактивный генератор устойчивых паролей"""
+    """Interactive strong password generator."""
     clear_screen()
     theme_color = get_theme_color()
     palette = get_theme_state().current_palette
     reset = palette.reset
-    green = palette.accent  # акцент (в NIGHT — RED, иначе YELLOW)
+    green = palette.accent  # accent (in NIGHT — RED, otherwise YELLOW)
 
     print(f"{theme_color}=========================================")
     print("        SECURE PASSWORD GENERATOR        ")
     print(f"========================================={reset}\n")
 
     try:
-        length = int(input("Введите длину пароля (рекомендуется от 12): ").strip())
+        length = int(input("Enter password length (12+ recommended): ").strip())
         if length < 4:
             length = 8
     except ValueError:
         length = 12
 
-    use_upper = input("Включать заглавные буквы (A-Z)? (y/n): ").strip().lower() != 'n'
-    use_digits = input("Включать цифры (0-9)? (y/n): ").strip().lower() != 'n'
-    use_special = input("Включать спецсимволы (!@#$%^&*)? (y/n): ").strip().lower() == 'y'
+    use_upper = input("Include uppercase letters (A-Z)? (y/n): ").strip().lower() != 'n'
+    use_digits = input("Include digits (0-9)? (y/n): ").strip().lower() != 'n'
+    use_special = input("Include special characters (!@#$%^&*)? (y/n): ").strip().lower() == 'y'
 
     password = generate_password(length, use_upper, True, use_digits, use_special)
 
     print("\n" + "-"*40)
-    terminal_print(f"СГЕНЕРИРОВАННЫЙ ПАРОЛЬ: {password}", color_code=green)
+    terminal_print(f"GENERATED PASSWORD: {password}", color_code=green)
     print("-"*40)
-    input("\nНажмите Enter для возврата в меню...")
+    input("\nPress Enter to return to the menu...")

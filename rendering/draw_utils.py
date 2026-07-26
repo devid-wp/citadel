@@ -2,38 +2,38 @@
 rendering/draw_utils.py
 =======================
 
-Стилизация цвета под текущую тему окружения.
+Color styling for the current environment theme.
 
-Ключевые функции
-----------------
-* apply_theme_filter(color, theme) — преобразует «сырой» цвет с учётом
-  темы. Поддерживает оба формата входа:
-      - tuple  : (R, G, B) в 0..255 — канонично из ТЗ;
-      - str    : имя ключа в config.COLORS (например, "WHITE", "PURPLE").
-* get_styled_color(name) — высокоуровневый хелпер, которым пользуются
-  модули HUD. Сам подтягивает текущую тему из ThemeState.
+Key functions
+-------------
+* apply_theme_filter(color, theme) - transforms a "raw" color according to
+  the theme. Supports both input formats:
+      - tuple  : (R, G, B) in 0..255 - canonical from the spec;
+      - str    : key name in config.COLORS (e.g. "WHITE", "PURPLE").
+* get_styled_color(name) - a high-level helper used by HUD modules.
+  Pulls the current theme from ThemeState automatically.
 
-Адаптация Red-shift под Citadel
--------------------------------
-Изначальное ТЗ говорит: «белый → мягкий красный в NIGHT». В пиксельной
-модели это очевидно: rgb(255,255,255) → rgb(255, 80, 80).
+Red-shift adaptation for Citadel
+--------------------------------
+The original spec says: "white -> soft red in NIGHT". In the pixel
+model that is obvious: rgb(255,255,255) -> rgb(255, 80, 80).
 
-Citadel — TUI-шелл, цвета представлены ANSI-кодами из config.COLORS.
-Мы НЕ можем «покрасить» строку вроде "\033[97m" поверх неё — это другой
-escape. Поэтому модель у нас двухуровневая:
+Citadel is a TUI shell; colors are represented by ANSI codes from config.COLORS.
+We CANNOT "paint" over a string like "\033[97m" - that is a different
+escape. So we use a two-level model:
 
-    логический цвет  →  (R, G, B) в логической палитре Citadel
-                            ↓ apply_theme_filter()
-                         (R', G', B') после темы
-                            ↓ _ansi_for_rgb()
-                         ANSI escape из config.COLORS
+    logical color  ->  (R, G, B) in Citadel's logical palette
+                            | apply_theme_filter()
+                         (R', G', B') after the theme
+                            | _ansi_for_rgb()
+                         ANSI escape from config.COLORS
 
-Это позволяет:
-  1. честно выполнить ТЗ-логику red-shift (работаем в RGB);
-  2. вернуть ANSI-код, который не ломает существующую TUI-отрисовку.
+This lets us:
+  1. honestly implement the spec's red-shift logic (we work in RGB);
+  2. return an ANSI code that does not break the existing TUI rendering.
 
-Если позже Citadel переедет на PIL/Pygame-канвас, нижний слой
-`_ansi_for_rgb` можно заменить на прямую передачу кортежа.
+If Citadel later moves to a PIL/Pygame canvas, the lower layer
+`_ansi_for_rgb` can be replaced by passing the tuple directly.
 """
 
 from __future__ import annotations
@@ -48,11 +48,11 @@ ColorLike = Union[str, Tuple[int, int, int]]
 
 
 # ----------------------------------------------------------------------------
-# Логическая палитра Citadel. Связь имя → RGB и RGB → ANSI.
-# Расширяемая структура: чтобы добавить новый цвет — дописать в оба dict.
+# Citadel's logical palette. Name -> RGB and RGB -> ANSI mapping.
+# Extensible structure: to add a new color, append to both dicts.
 # ----------------------------------------------------------------------------
 LOGICAL_RGB: dict[str, Tuple[int, int, int]] = {
-    # Базовые цвета TUI (приблизительные sRGB для логических операций).
+    # Base TUI colors (approximate sRGB for logical operations).
     "WHITE":     (255, 255, 255),
     "GRAY":      (128, 128, 128),
     "RED":       (255,   0,   0),
@@ -66,12 +66,12 @@ LOGICAL_RGB: dict[str, Tuple[int, int, int]] = {
     "BLACK":     (  0,   0,   0),
 }
 
-# Обратный индекс: «наиболее похожий» ANSI из config.COLORS на заданный RGB.
-# (config.COLORS не хранит RGB, только ANSI-коды — поэтому явный маппинг.)
+# Reverse index: the "closest" ANSI from config.COLORS for a given RGB.
+# (config.COLORS does not store RGB, only ANSI codes - hence the explicit mapping.)
 RGB_TO_ANSI_KEY: dict[str, str] = {
-    "WHITE":     "RESET",   # в TUI белый = «без модификатора» → возьмём сброс;
-                            # если у вас есть цвет "WHITE" в config.COLORS —
-                            # переопределите здесь.
+    "WHITE":     "RESET",   # in TUI white = "no modifier" -> we use reset;
+                            # if you have a "WHITE" color in config.COLORS -
+                            # override it here.
     "GRAY":      "GRAY",
     "RED":       "RED",
     "GREEN":     "GREEN",
@@ -86,7 +86,7 @@ RGB_TO_ANSI_KEY: dict[str, str] = {
 
 
 def _to_rgb(color: ColorLike) -> Tuple[int, int, int]:
-    """Нормализовать вход к (R, G, B)."""
+    """Normalize input to (R, G, B)."""
     if isinstance(color, tuple):
         if len(color) != 3:
             raise ValueError(f"RGB tuple must have 3 components, got {color}")
@@ -104,11 +104,11 @@ def _to_rgb(color: ColorLike) -> Tuple[int, int, int]:
 
 def _ansi_for_rgb(rgb: Tuple[int, int, int]) -> str:
     """
-    Подобрать ANSI-код из config.COLORS, ближайший к данному RGB.
+    Pick the ANSI code from config.COLORS closest to the given RGB.
 
-    Простой алгоритм: выбираем ключ из RGB_TO_ANSI_KEY с минимальным
-    евклидовым расстоянием в RGB-пространстве. Достаточно для маленькой
-    палитры Citadel (≈10 цветов).
+    Simple algorithm: choose the key from RGB_TO_ANSI_KEY with the minimal
+    Euclidean distance in RGB space. Sufficient for Citadel's small
+    palette (~10 colors).
     """
     best_key = "RESET"
     best_dist = float("inf")
@@ -123,15 +123,15 @@ def _ansi_for_rgb(rgb: Tuple[int, int, int]) -> str:
 
 
 # ----------------------------------------------------------------------------
-# Параметры red-shift. Вынесены на верх, чтобы их легко подменить в тестах.
+# Red-shift parameters. Hoisted to the top so tests can swap them easily.
 # ----------------------------------------------------------------------------
-# Множитель для G/B каналов в NIGHT — 0.32 даёт «тёмно-красный»,
-# который не «режет» глаз при длительном чтении HUD в темноте.
+# Multiplier for G/B channels in NIGHT - 0.32 gives a "dark red" that
+# does not "cut" the eye during long HUD reading sessions in the dark.
 NIGHT_GREEN_FACTOR = 0.32
 NIGHT_BLUE_FACTOR = 0.32
 
-# Дополнительный «прогрев» — лёгкий подъём R, чтобы компенсировать
-# падение яркости из-за умножения G/B. 1.0 = без изменений.
+# Additional "warmth" - a small R boost to compensate for the brightness
+# drop from the G/B multiplication. 1.0 = no change.
 NIGHT_RED_BOOST = 1.00
 
 
@@ -140,24 +140,24 @@ def apply_theme_filter(
     theme: Optional[Union[Theme, str]] = None,
 ) -> Tuple[int, int, int]:
     """
-    Применить тему к цвету и вернуть скорректированный RGB.
+    Apply the theme to a color and return the adjusted RGB.
 
-    Параметры
-    ---------
-    color : (R, G, B) или имя логического цвета
+    Parameters
+    ----------
+    color : (R, G, B) or logical color name
     theme : Theme / 'DAY' / 'EVENING' / 'NIGHT' / None
-            Если None — используется текущая тема из ThemeState.
+            If None - the current theme from ThemeState is used.
 
-    Правила
-    -------
-    DAY     — без изменений.
-    EVENING — лёгкое «затемнение» (умножение всех каналов на 0.85) и
-              лёгкий сдвиг в тёплый (R+=5, B-=5).
-    NIGHT   — Red-shift по ТЗ:
+    Rules
+    -----
+    DAY     - no changes.
+    EVENING - light "darkening" (multiply all channels by 0.85) and
+              a light warm shift (R+=5, B-=5).
+    NIGHT   - Red-shift per spec:
                   G *= NIGHT_GREEN_FACTOR
                   B *= NIGHT_BLUE_FACTOR
                   R *= NIGHT_RED_BOOST
-              Для «белого» (255,255,255) → (255, 81, 81) — мягкий красный.
+              For "white" (255,255,255) -> (255, 81, 81) - soft red.
     """
     if theme is None:
         theme = get_theme_state().current_theme
@@ -176,7 +176,7 @@ def apply_theme_filter(
             max(0, int(b * 0.85) - 5),
         )
 
-    # theme is Theme.NIGHT — red-shift
+    # theme is Theme.NIGHT - red-shift
     return (
         min(255, int(r * NIGHT_RED_BOOST)),
         int(g * NIGHT_GREEN_FACTOR),
@@ -186,18 +186,18 @@ def apply_theme_filter(
 
 def get_styled_color(name: str) -> str:
     """
-    Высокоуровневый вход для модулей HUD.
+    High-level entry point for HUD modules.
 
-        color = get_styled_color("WHITE")  → ANSI-код, готовый к print
+        color = get_styled_color("WHITE")  -> ANSI code, ready to print
 
-    Алгоритм:
-        1. Берём RGB-эквивалент логического цвета `name`.
-        2. Применяем apply_theme_filter() с текущей темой.
-        3. Возвращаем ANSI-код из config.COLORS.
+    Algorithm:
+        1. Take the RGB equivalent of the logical color `name`.
+        2. Apply apply_theme_filter() with the current theme.
+        3. Return the ANSI code from config.COLORS.
 
-    Если `name` совпадает с ключом в config.COLORS напрямую (например,
-    "PURPLE") — мы всё равно прогоняем через фильтр, чтобы NIGHT-shift
-    работал и для «цветных» цветов, а не только для белого.
+    If `name` matches a key in config.COLORS directly (e.g. "PURPLE"),
+    we still pass it through the filter so that the NIGHT shift works
+    for "colored" colors as well, not only for white.
     """
     if name not in LOGICAL_RGB:
         raise KeyError(
@@ -209,10 +209,11 @@ def get_styled_color(name: str) -> str:
 
 def styled_print(text: str, color_name: str) -> None:
     """
-    Удобный хелпер: напечатать текст цветом, согласованным с темой.
+    Convenient helper: print text in a color consistent with the theme.
 
-    Под капотом — get_styled_color(). Это точка входа, на которую должны
-    переходить модули HUD вместо прямых print(f"{config.COLORS[...]}").
+    Under the hood - get_styled_color(). HUD modules should use this
+    entry point instead of calling print(f"{config.COLORS[...]}")
+    directly.
     """
     code = get_styled_color(color_name)
     print(f"{code}{text}{config.COLORS['RESET']}")

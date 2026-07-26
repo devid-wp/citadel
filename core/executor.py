@@ -51,7 +51,7 @@ def run_external_command(cmd_name, args, stdin=sys.stdin, stdout=sys.stdout):
         print(f"Citadel: command not found: {cmd_name}", file=sys.stderr)
         return 127
     except KeyboardInterrupt:
-        print("\n[ Citadel: Процесс прерван ]")
+        print("\n[ Citadel: Process interrupted ]")
         return 130
     except Exception as e:
         print(f"Citadel: error: {e}", file=sys.stderr)
@@ -126,10 +126,10 @@ def run_piped_commands(pipe_commands):
         return 0
 
     except FileNotFoundError:
-        print(f"Citadel: Ошибка конвейера (бинарник не найден)", file=sys.stderr)
+        print(f"Citadel: Pipeline error (binary not found)", file=sys.stderr)
         return 127
     except Exception as e:
-        print(f"Citadel: Ошибка пайпа: {e}", file=sys.stderr)
+        print(f"Citadel: Pipe error: {e}", file=sys.stderr)
         return 1
 
 def run_command(user_input):

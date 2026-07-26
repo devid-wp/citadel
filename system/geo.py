@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
+import config
 from system.user_config import cache_location, get_cached_location
 
 CACHE_TTL = 3600  # 1 час
@@ -22,7 +23,10 @@ CACHE_TTL = 3600  # 1 час
 # Таймаут HTTP-запросов (сек) — чтобы медленный интернет не замораживал оболочку
 HTTP_TIMEOUT = 4.0
 
-USER_AGENT = "CitadelOS/3.0 (geolocation)"
+# User-Agent включает публичную версию + версию движка (Source-of-truth — config.py).
+USER_AGENT = (
+    f"CitadelOS/{config.VERSION} (Core {config.CORE_VERSION}; geolocation)"
+)
 
 
 def _http_get_json(url: str) -> Optional[dict]:
@@ -124,9 +128,9 @@ def get_location(force_refresh: bool = False) -> Optional[dict]:
 
 
 def format_location(loc: dict) -> str:
-    """Отформатировать локацию для красивого вывода в терминале."""
+    """Format a location dict for pretty terminal output."""
     if not loc:
-        return "Локация не определена"
+        return "Location not determined"
 
     city = loc.get("city") or "—"
     region = loc.get("region") or ""
@@ -144,9 +148,9 @@ def format_location(loc: dict) -> str:
 
     return (
         f"IP: {ip}\n"
-        f"Место: {place}\n"
-        f"Часовой пояс: {tz}\n"
-        f"Провайдер: {org}\n"
-        f"Координаты: {loc.get('lat'):.4f}, {loc.get('lon'):.4f}\n"
-        f"Источник: {src}"
+        f"Place: {place}\n"
+        f"Timezone: {tz}\n"
+        f"Provider: {org}\n"
+        f"Coordinates: {loc.get('lat'):.4f}, {loc.get('lon'):.4f}\n"
+        f"Source: {src}"
     )
