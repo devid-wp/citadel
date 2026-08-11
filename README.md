@@ -2,158 +2,84 @@
 
 # 🛡️ Citadel OS
 
-### Модульная консольная оболочка для системного администрирования, криптографии и сетевого аудита
+### A released, full-featured Arch Linux distribution with the Hyprland desktop
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)](https://www.python.org)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)]()
-[![License](https://img.shields.io/badge/License-MIT-green)]()
+[![Base](https://img.shields.io/badge/Base-Arch%20Linux-1793d1?logo=archlinux&logoColor=white)](https://archlinux.org/)
+[![Desktop](https://img.shields.io/badge/Desktop-Hyprland-58e1ff)](https://hypr.land/)
+[![Status](https://img.shields.io/badge/Status-Released-success)]()
 [![Version](https://img.shields.io/badge/Version-3.0-orange)]()
+[![License](https://img.shields.io/badge/License-MIT-green)]()
 
 </div>
 
 ---
 
-## 📖 О проекте
+## About Citadel OS
 
-**Citadel OS** — высокотехнологичная модульная консольная оболочка, написанная на Python, объединяющая инструменты системного администрирования, криптографической защиты данных, сетевого аудита и мониторинга ресурсов.
+**Citadel OS** is a released Linux operating system built on **Arch Linux**. It combines the Arch ecosystem with a fast, modern **Hyprland** graphical desktop and a focused set of built-in system, security, networking, and productivity tools.
 
-Оболочка работает как в **Windows**, так и в **Linux**, а также минимизирует внешние зависимости, заменяя их встроенными архитектурными фолбэками.
+Citadel OS is designed as a complete desktop environment—not as a standalone Python application. Its included utilities are part of the operating-system experience, while Arch Linux provides the foundation for package management, hardware support, and updates.
 
----
+## Highlights
 
-## 🚀 Быстрый старт
+- **Arch Linux base** — access to `pacman`, the Arch package ecosystem, and a current rolling-release foundation.
+- **Hyprland desktop** — a responsive Wayland compositor with a modern, keyboard-friendly workflow.
+- **Live and rescue environment** — boot Citadel OS directly from its ISO for evaluation, maintenance, or recovery work.
+- **System tools** — hardware overview, process and resource monitoring, storage inspection, logging, backups, and integrity checks.
+- **Network tools** — interface information, local-network discovery, host reachability checks, and IP geolocation.
+- **Security utilities** — local security auditing, authentication controls, encryption utilities, and password generation.
+- **Everyday applications** — file browser, notes, weather, and an application launcher.
 
-### 1. Установка зависимостей
+## Desktop environment
 
-```bash
-pip install -r requirements.txt
-```
+Citadel OS uses **Hyprland** as its graphical shell. The Wayland-based desktop is built for speed, flexibility, and efficient window management, while Citadel OS adds its own system utilities and visual identity around it.
 
-### 2. Инициализация сессии
+## System components
 
-```bash
-python main.py
-```
-
-> 🔑 **Аутентификация по умолчанию:** пароль `admin`
-> Изменение учётных данных доступно через панель управления: `center → [3] Сменить пароль`
-
----
-
-## 🛠 Архитектурные компоненты и функционал
-
-### 1. Подсистема безопасности и криптографии
-
-| Компонент | Описание |
+| Area | Included capabilities |
 |---|---|
-| **Менеджер аутентификации** | Проверка учётных данных через хеширование `bcrypt`. При отсутствии бинарных зависимостей — автоматический фолбэк на `PBKDF2-SHA256`. Защита от брутфорса — экспоненциальная задержка между попытками ввода. |
-| **Криптографический модуль** | Симметричное round-trip шифрование строк и файлов по схеме `AES-128-CBC + HMAC-SHA256` (Fernet). Деривация ключа — `PBKDF2` (120 000 итераций). Для обратной совместимости сохранён режим legacy `XOR`. |
-| **Модуль аудита** | Встроенный сканер уязвимостей локальной системы: поиск дебаг-режимов, дефолтных учётных записей и открытых портов. |
+| System management | Hardware information, process management, CPU/RAM monitoring, disk and memory usage |
+| Networking | Interface configuration, network scanning, ping, and IP-based location tools |
+| Security | Local audit tools, authentication, encrypted files and text, password generation |
+| Recovery | Component integrity checks, backups, and session logging |
+| Productivity | File browser, notes, weather, aliases, command history, and launcher |
+| Packages | Native Arch Linux package management through `pacman` |
 
-### 2. Сетевой стек и телеметрия
-
-- **Сетевой интерфейс** — ARP-сканирование локальных подсетей (`netscan`), вывод конфигурации сетевых интерфейсов (`ip`), асинхронная проверка доступности узлов (`ping`)
-- **Мониторинг ресурсов** — TUI-утилита `sysmon` для контроля CPU/RAM в реальном времени, встроенный менеджер процессов (`ps`/`kill`), анализатор дискового пространства (`df`/`free`)
-
-### 3. Взаимодействие с API (Zero-Token)
-
-- **Геолокация** — определение провайдера, координат и города по внешнему IP
-- **Погода** — интеграция с Open-Meteo: текущие данные, почасовой прогноз на сутки, сводка на 3 дня
-
-### 4. Интерфейсная среда (UX)
-
-- ⌨️ Автодополнение команд и путей по `Tab` через `readline` (`pyreadline3` на Windows)
-- 🕘 Навигация по истории команд (`↑` / `↓`) и полный журнал сессии (`history`)
-- 🔗 Динамические псевдонимы (`alias add <name> <command>`)
-- 🎨 9 предустановленных цветовых схем терминала (настройка через `center`)
-- 🔒 Блокировка экрана командой `lock` без завершения дочерних процессов
-
----
-
-## 📂 Структура репозитория
+## Repository layout
 
 ```
 citadel/
-├── main.py                # Главная точка входа, REPL-цикл обработки ввода
-├── config.py              # Статические конфигурационные константы системы
-├── test_all.py            # Набор smoke-тестов (integrity, криптография, локализация)
-├── requirements.txt       # Декларация зависимостей (bcrypt, cryptography, pyreadline3)
-│
-├── core/                  # Модули ядра системы
-│   ├── auth.py             # Логика аутентификации (bcrypt / PBKDF2 / MD5 фолбэки)
-│   ├── interface.py        # Рендеринг таблиц, FastFetch, прогресс-баров
-│   └── shell_utils.py      # Парсер динамических алиасов, конфигуратор автодополнения
-│
-├── system/                # Низкоуровневые системные утилиты
-│   ├── hardware.py         # Сбор спецификаций аппаратного обеспечения (CPU/RAM)
-│   ├── process_mgr.py      # Мониторинг процессов и ресурсов (ps, sysmon)
-│   ├── network.py          # Сетевые сканеры и утилиты проверки связи (ping)
-│   ├── package_mgr.py      # Интеграция с pacman (Arch Linux) / mock-режим
-│   ├── recovery.py         # Контроль целостности файлов и создание бэкапов
-│   ├── geo.py              # Инструменты работы с IP-адресами
-│   └── logger.py           # Логирование сессии (system/citadel.log) с ротацией
-│
-└── apps/                  # Встроенное прикладное программное обеспечение
-    ├── center.py            # Панель управления и модуль аудита безопасности
-    ├── crypto.py            # CLI-интерфейс для AES-шифрования
-    ├── file_browser.py      # Интерактивный файловый менеджер
-    ├── notes.py             # Локальный менеджер заметок
-    ├── passgen.py           # Генератор безопасных паролей
-    └── weather.py           # Парсер метеорологических данных
+├── citadel_iso_build/    # ArchISO profile, package list, and live-system files
+├── core/                 # Shell, session, command, and interface components
+├── system/               # System, networking, recovery, and logging utilities
+├── apps/                 # Built-in Citadel applications
+├── modules/              # Desktop and environment modules
+├── tests/                # Automated test suite
+├── main.py               # Citadel session entry point
+└── build_iso_stage.py    # ISO staging helper
 ```
 
----
+## Building the ISO
 
-## 📋 Список доступных команд
-
-| Команда | Назначение |
-|---|---|
-| `help` | Вывод полного списка доступных команд |
-| `fetch` | Формирование системного отчёта (аналог FastFetch) |
-| `center` | Доступ к настройкам Citadel, аудиту безопасности и смене паролей |
-| `sysmon` / `ps` | Мониторинг аппаратных ресурсов / дерево активных процессов |
-| `kill <PID>` | Принудительное завершение процесса по его идентификатору |
-| `df` / `free` | Анализ дискового пространства и оперативной памяти |
-| `netscan` / `ip` | Сканирование локальной сети / вывод конфигурации интерфейсов |
-| `ping <host>` | Проверка сетевой доступности удалённого узла |
-| `files` | Запуск интерактивного файлового менеджера |
-| `crypto` | Инициализация криптографического модуля шифрования (AES) |
-| `notes` | Запуск локального текстового блокнота |
-| `weather` / `geo` | Вывод метеосводки / данных геолокации по IP |
-| `pkg <action>` | Менеджер пакетов (в Arch Linux — напрямую через pacman) |
-| `alias <action>` | Модификация, удаление и просмотр динамических алиасов |
-| `log [N]` | Вывод последних N строк системного журнала событий |
-| `lock` | Мгновенная блокировка экрана текущей сессии |
-| `recovery` | Проверка целостности компонентов системы и управление бэкапами |
-| `clear` / `history` | Очистка экрана терминала / вывод истории ввода |
-| `exit` / `q` | Штатное завершение работы оболочки |
-
----
-
-## 🔒 Безопасность и отказоустойчивость
-
-- ✅ **Безопасный парсинг данных** — исключено использование `eval()`; обработка входящих структур реализована строго через `ast.literal_eval`
-- ✅ **Командный контекст** — аргументы системных вызовов передаются как изолированные списки без конкатенации строк, что исключает угрозу Command Injection; `shell=True` строго ограничено системными утилитами
-- ✅ **Изоляция данных** — конфигурационные файлы (`system/user_config.json`) и логи (`system/citadel.log`) внесены в `.gitignore`
-
----
-
-## 🧪 Тестирование
-
-Запуск полного пакета smoke-тестов для валидации криптографических модулей, парсеров, логгера и логики алиасов:
+The repository includes an ArchISO profile in `citadel_iso_build/`. Build the image on an Arch Linux system with the ArchISO tooling installed:
 
 ```bash
-python test_all.py
+mkarchiso -v -w work -o out citadel_iso_build
 ```
 
----
+The generated ISO can be written to a USB drive and booted on supported x86_64 hardware. Test it in a virtual machine before installing it on a physical system.
 
-## 📄 Лицензия
+## Development and testing
 
-Данное программное обеспечение распространяется под лицензией **MIT**.
-Разрешается модификация, распространение и коммерческое использование кода без ограничений.
+Citadel OS includes automated tests for its internal tools and shell components:
 
----
+```bash
+pytest
+```
+
+## License
+
+Citadel OS is distributed under the **MIT License**. You may use, modify, and distribute the source code, including for commercial purposes, subject to the license terms.
 
 <div align="center">
 
